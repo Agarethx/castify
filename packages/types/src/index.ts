@@ -125,3 +125,58 @@ export interface ApiError {
   message: string;
   error: string;
 }
+
+// ─── Player ───────────────────────────────────────────────────────────────────
+
+export type PlayerEventType =
+  | 'play'
+  | 'pause'
+  | 'seek'
+  | 'buffering_start'
+  | 'buffering_end'
+  | 'quality_change'
+  | 'segment_loaded'
+  | 'error'
+  | 'ended';
+
+export interface PlayerEvent {
+  type: PlayerEventType;
+  timestamp: number;
+  data?: Record<string, unknown>;
+}
+
+export interface SegmentLoadedData {
+  url: string;
+  /** El Scheduler determina si fue peer o CDN */
+  source: 'peer' | 'cdn';
+  latencyMs: number;
+  sizeBytes: number;
+  quality: string;
+}
+
+export interface QualityLevel {
+  index: number;
+  height: number;
+  bitrate: number;
+  /** e.g. '360p' | '720p' | '1080p' */
+  name: string;
+}
+
+export interface PlayerState {
+  status: 'idle' | 'loading' | 'playing' | 'paused' | 'buffering' | 'error' | 'ended';
+  currentTime: number;
+  duration: number | null;
+  /** segundos bufferizados adelante */
+  buffered: number;
+  quality: QualityLevel | null;
+  availableQualities: QualityLevel[];
+  volume: number;
+  muted: boolean;
+  isLive: boolean;
+  /** El Scheduler cambia esto en Prompt 05 */
+  p2pEnabled: boolean;
+  /** El Scheduler actualiza esto en Prompt 05 */
+  bytesFromPeers: number;
+  /** El Scheduler actualiza esto en Prompt 05 */
+  bytesFromCdn: number;
+}

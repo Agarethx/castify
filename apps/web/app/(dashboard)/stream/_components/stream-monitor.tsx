@@ -52,7 +52,14 @@ export function StreamMonitor({ streamKey, initialStatus, initialHlsUrl }: Strea
       </CardHeader>
       <CardContent>
         {isActive && hlsUrl ? (
-          <CastifyPlayer src={hlsUrl} autoplay muted className="rounded-lg" />
+          <CastifyPlayer
+            src={hlsUrl}
+            isLive
+            autoplay
+            muted
+            onEvent={(event) => console.log('[Player Event]', event)}
+            className="rounded-lg"
+          />
         ) : (
           <div className="w-full aspect-video rounded-lg bg-muted/40 border border-border flex flex-col items-center justify-center gap-2">
             <div className="h-2 w-2 rounded-full bg-zinc-500" />

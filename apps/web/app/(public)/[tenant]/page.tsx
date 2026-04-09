@@ -58,7 +58,13 @@ export default async function ChannelHomePage({ params }: PageProps): Promise<Re
               <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
               <span className="text-sm font-medium text-green-400">EN VIVO</span>
             </div>
-            <CastifyPlayer src={liveContent.hlsUrl} autoplay className="rounded-2xl" />
+            <CastifyPlayer
+              src={liveContent.hlsUrl}
+              isLive
+              autoplay
+              onEvent={(event) => console.log('[Player Event]', event)}
+              className="rounded-2xl"
+            />
           </div>
         ) : (
           <div className="w-full aspect-video rounded-2xl border border-border flex flex-col items-center justify-center gap-3 bg-muted/30">
