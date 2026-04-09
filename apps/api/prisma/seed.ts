@@ -19,10 +19,27 @@ async function main(): Promise<void> {
     },
   });
 
-  console.log(`✓ Canal: ${demoChannel.name} (${demoChannel.slug})`);
+  console.log(`✅ Canal: ${demoChannel.name} (${demoChannel.slug})`);
+
+  // ── Content LIVE para el canal demo ────────────────────────────────────────
+  const existingLive = await prisma.content.findFirst({
+    where: { channelId: demoChannel.id, type: 'LIVE' },
+  });
+
+  const liveContent = existingLive ?? await prisma.content.create({
+    data: {
+      channelId: demoChannel.id,
+      title: 'Señal en vivo',
+      type: 'LIVE',
+      status: 'INACTIVE',
+    },
+  });
+
+  console.log(`🔑 Stream Key: ${liveContent.streamKey}`);
+  console.log(`📹 RTMP URL:   rtmp://localhost/live/${liveContent.streamKey}`);
 
   // ── Super Admin ─────────────────────────────────────────────────────────────
-  const superAdmin = await prisma.user.upsert({
+  await prisma.user.upsert({
     where: { email: 'admin@castify.tv' },
     update: {},
     create: {
@@ -32,10 +49,10 @@ async function main(): Promise<void> {
     },
   });
 
-  console.log(`✓ Super Admin: ${superAdmin.email}`);
+  console.log(`✅ Super Admin: admin@castify.tv`);
 
   // ── Channel Admin ────────────────────────────────────────────────────────────
-  const channelAdmin = await prisma.user.upsert({
+  await prisma.user.upsert({
     where: { email: 'admin@demo.castify.tv' },
     update: {},
     create: {
@@ -46,9 +63,8 @@ async function main(): Promise<void> {
     },
   });
 
-  console.log(`✓ Channel Admin: ${channelAdmin.email}`);
-
-  console.log('✅ Seed completado');
+  console.log(`✅ Channel Admin: admin@demo.castify.tv`);
+  console.log('\n🚀 Seed completado');
 }
 
 main()

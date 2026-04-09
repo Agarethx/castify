@@ -1,0 +1,83 @@
+import Link from 'next/link';
+import { Home, Radio, Film, BarChart2, Settings, LogOut } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Separator } from '@/components/ui/separator';
+import type { UserWithChannel } from '@castify/types';
+
+const NAV_ITEMS = [
+  { href: '/stream', label: 'Stream', icon: Radio },
+  { href: '/', label: 'Inicio', icon: Home },
+  { href: '/content', label: 'Contenido', icon: Film },
+  { href: '/analytics', label: 'Analytics', icon: BarChart2 },
+  { href: '/settings', label: 'Configuración', icon: Settings },
+] as const;
+
+interface AppSidebarProps {
+  user: UserWithChannel;
+  currentPath?: string;
+}
+
+export function AppSidebar({ user, currentPath = '' }: AppSidebarProps): React.JSX.Element {
+  const channel = user.channel;
+
+  return (
+    <aside className="w-64 flex flex-col border-r border-border bg-card">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-border flex items-center gap-3">
+        {channel?.logoUrl ? (
+          <img src={channel.logoUrl} alt={channel.name} className="h-8 w-8 rounded object-contain" />
+        ) : (
+          <div
+            className="h-8 w-8 rounded flex items-center justify-center text-xs font-bold text-background"
+            style={{ backgroundColor: channel?.primaryColor ?? '#6366f1' }}
+          >
+            {(channel?.name ?? 'C')[0]?.toUpperCase()}
+          </div>
+        )}
+        <div className="min-w-0">
+          <p className="text-sm font-semibold truncate">{channel?.name ?? 'Castify'}</p>
+          <p className="text-xs text-muted-foreground truncate">{channel?.plan ?? ''}</p>
+        </div>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-3 space-y-0.5">
+        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          const isActive = currentPath === href || (href !== '/' && currentPath.startsWith(href));
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
+                isActive
+                  ? 'bg-accent text-accent-foreground font-medium'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/50',
+              )}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              {label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Footer */}
+      <Separator />
+      <div className="px-3 py-3">
+        <div className="px-3 py-1 mb-1">
+          <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+        </div>
+        <form action="/api/auth/logout-action" method="POST">
+          <button
+            type="submit"
+            className="flex w-full items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            Cerrar sesión
+          </button>
+        </form>
+      </div>
+    </aside>
+  );
+}

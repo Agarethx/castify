@@ -21,11 +21,8 @@ export type CreateChannelDto = z.infer<typeof CreateChannelSchema>;
 // ─── Content ─────────────────────────────────────────────────────────────────
 
 export const CreateContentSchema = z.object({
-  title: z.string().min(1, 'El título es requerido'),
-  type: z.enum(['live', 'vod']),
-  channelId: z.string().uuid('channelId debe ser un UUID válido'),
-  thumbnailUrl: z.string().url('Debe ser una URL válida').optional(),
-  duration: z.number().int().positive().optional(),
+  title: z.string().min(2, 'El título debe tener al menos 2 caracteres').max(100, 'El título no puede superar 100 caracteres'),
+  type: z.enum(['LIVE', 'VOD']),
 });
 
 export type CreateContentDto = z.infer<typeof CreateContentSchema>;
@@ -52,7 +49,7 @@ export const RegisterSchema = LoginSchema.extend({
 
 export type RegisterDto = z.infer<typeof RegisterSchema>;
 
-// ─── API Env (apps/api) ───────────────────────────────────────────────────────
+// ─── API Env ──────────────────────────────────────────────────────────────────
 
 export const ApiEnvSchema = z.object({
   DATABASE_URL: z.string().url('DATABASE_URL debe ser una URL válida'),
@@ -60,6 +57,7 @@ export const ApiEnvSchema = z.object({
   JWT_SECRET: z.string().min(16, 'JWT_SECRET debe tener al menos 16 caracteres'),
   JWT_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
+  STREAMING_SECRET: z.string().min(1).default('dev-secret'),
   BUNNY_API_KEY: z.string().min(1).default('placeholder'),
   BUNNY_STORAGE_ZONE: z.string().min(1).default('placeholder'),
   PEER5_KEY: z.string().min(1).default('placeholder'),
@@ -69,7 +67,7 @@ export const ApiEnvSchema = z.object({
 
 export type ApiEnv = z.infer<typeof ApiEnvSchema>;
 
-// ─── Web Env (apps/web) ───────────────────────────────────────────────────────
+// ─── Web Env ──────────────────────────────────────────────────────────────────
 
 export const WebEnvSchema = z.object({
   NEXT_PUBLIC_API_URL: z.string().url('NEXT_PUBLIC_API_URL debe ser una URL válida'),

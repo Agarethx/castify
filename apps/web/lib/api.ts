@@ -1,17 +1,18 @@
 import type {
   Channel,
+  ChannelWithContents,
   Content,
   LoginResponse,
+  PublicChannel,
+  StreamStatusResponse,
   UserWithChannel,
   ApiError,
 } from '@castify/types';
-import type { LoginDto, RefreshTokenDto } from '@castify/validators';
+import type { LoginDto, RefreshTokenDto, CreateContentDto } from '@castify/validators';
 import Cookies from 'js-cookie';
 
 const API_URL =
-  typeof window === 'undefined'
-    ? (process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001')
-    : (process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001');
+  process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001';
 
 export class ApiClientError extends Error {
   constructor(
@@ -36,28 +37,21 @@ export class ApiClient {
       ...extra,
     };
 
-    // Add auth token if available
     const token = Cookies.get('castify_access_token');
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    // Add tenant slug
     const slug = this.tenantSlug ?? Cookies.get('castify_tenant');
     if (slug) headers['X-Tenant-Slug'] = slug;
 
     return headers;
   }
 
-  private async fetch<T>(
-    path: string,
-    init?: RequestInit,
-    retry = true,
-  ): Promise<T> {
+  private async fetch<T>(path: string, init?: RequestInit, retry = true): Promise<T> {
     const res = await fetch(`${API_URL}${path}`, {
       ...init,
       headers: this.getHeaders(init?.headers as Record<string, string>),
     });
 
-    // Auto-refresh on 401
     if (res.status === 401 && retry) {
       const refreshed = await this.tryRefresh();
       if (refreshed) return this.fetch<T>(path, init, false);
@@ -74,10 +68,9 @@ export class ApiClient {
   private async tryRefresh(): Promise<boolean> {
     const refreshToken = Cookies.get('castify_refresh_token');
     if (!refreshToken) return false;
-
     try {
       const data = await this.auth.refresh({ refreshToken });
-      Cookies.set('castify_access_token', data.accessToken, { expires: 1 / 96 }); // 15min
+      Cookies.set('castify_access_token', data.accessToken, { expires: 1 / 96 });
       return true;
     } catch {
       this.clearTokens();
@@ -90,7 +83,7 @@ export class ApiClient {
     Cookies.remove('castify_refresh_token');
   }
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
+  // ── Auth ───────────────────────────────────────────────────────────────────
 
   auth = {
     login: async (dto: LoginDto): Promise<LoginResponse> => {
@@ -98,21 +91,16 @@ export class ApiClient {
         method: 'POST',
         body: JSON.stringify(dto),
       });
-      // Persist tokens in cookies
-      Cookies.set('castify_access_token', data.accessToken, { expires: 1 / 96 }); // 15min
+      Cookies.set('castify_access_token', data.accessToken, { expires: 1 / 96 });
       Cookies.set('castify_refresh_token', data.refreshToken, { expires: 7 });
-      if (data.user.channelId) {
-        // tenant slug not available here — set via store after me() call
-      }
       return data;
     },
 
-    refresh: async (dto: RefreshTokenDto): Promise<{ accessToken: string; refreshToken: string }> => {
-      return this.fetch<{ accessToken: string; refreshToken: string }>('/api/auth/refresh', {
+    refresh: async (dto: RefreshTokenDto): Promise<{ accessToken: string; refreshToken: string }> =>
+      this.fetch<{ accessToken: string; refreshToken: string }>('/api/auth/refresh', {
         method: 'POST',
         body: JSON.stringify(dto),
-      });
-    },
+      }),
 
     logout: async (): Promise<void> => {
       const refreshToken = Cookies.get('castify_refresh_token');
@@ -127,27 +115,31 @@ export class ApiClient {
     me: (): Promise<UserWithChannel> => this.fetch<UserWithChannel>('/api/auth/me'),
   };
 
-  // ── Channels ──────────────────────────────────────────────────────────────
+  // ── Channels ───────────────────────────────────────────────────────────────
 
   channels = {
-    findBySlug: (slug: string): Promise<Channel> =>
-      this.fetch<Channel>(`/api/channels/${slug}`),
     findAll: (): Promise<Channel[]> => this.fetch<Channel[]>('/api/channels'),
+    getMyChannel: (): Promise<ChannelWithContents> => this.fetch<ChannelWithContents>('/api/channels/me'),
+    createContent: (data: CreateContentDto): Promise<Content> =>
+      this.fetch<Content>('/api/channels/me/content', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    getPublicChannel: (slug: string): Promise<PublicChannel> =>
+      this.fetch<PublicChannel>(`/api/public/channels/${slug}`),
   };
 
-  // ── Content ───────────────────────────────────────────────────────────────
+  // ── Streaming ──────────────────────────────────────────────────────────────
 
-  content = {
-    findByChannel: (channelId: string): Promise<Content[]> =>
-      this.fetch<Content[]>(`/api/channels/${channelId}/content`),
-    findBySlug: (channelId: string, slug: string): Promise<Content> =>
-      this.fetch<Content>(`/api/channels/${channelId}/content/${slug}`),
+  streaming = {
+    getStatus: (streamKey: string): Promise<StreamStatusResponse> =>
+      this.fetch<StreamStatusResponse>(`/api/streaming/status/${streamKey}`),
   };
 }
 
 export const api = new ApiClient();
 
-// ── Server-side fetcher (no cookies, uses token arg) ─────────────────────────
+// ── Server-side fetcher ────────────────────────────────────────────────────────
 
 export async function serverFetch<T>(
   path: string,

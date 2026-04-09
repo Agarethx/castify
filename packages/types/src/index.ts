@@ -2,9 +2,8 @@
 
 export type Plan = 'STARTER' | 'PRO' | 'ENTERPRISE';
 export type Role = 'SUPER_ADMIN' | 'CHANNEL_ADMIN' | 'VIEWER';
-export type ContentType = 'live' | 'vod';
-export type ContentStatus = 'draft' | 'published' | 'archived';
-export type AdBreakPosition = 'preroll' | 'midroll' | 'postroll';
+export type ContentType = 'LIVE' | 'VOD';
+export type ContentStatus = 'INACTIVE' | 'ACTIVE' | 'PROCESSING' | 'ERROR';
 
 // ─── Core entities ────────────────────────────────────────────────────────────
 
@@ -37,37 +36,57 @@ export interface Content {
   id: string;
   channelId: string;
   title: string;
-  slug: string;
   type: ContentType;
   status: ContentStatus;
-  thumbnailUrl: string | null;
-  duration: number | null;
-  publishedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
+  streamKey: string;
+  hlsUrl: string | null;
+  localPath: string | null;
+  durationSec: number | null;
+  createdAt: string;
 }
 
 export interface StreamSession {
   id: string;
   contentId: string;
-  viewerId: string | null;
-  startedAt: Date;
-  endedAt: Date | null;
+  startedAt: string;
+  endedAt: string | null;
+  bytesFromPeers: number;
+  bytesFromCdn: number;
   p2pOffloadPct: number;
-  bytesFromPeers: bigint;
-  bytesFromCdn: bigint;
+  avgLatencyMs: number;
+  peersConnected: number;
+  qualityChanges: number;
 }
 
-export interface AdBreak {
+export interface CreateContentDto {
+  title: string;
+  type: ContentType;
+}
+
+export interface ChannelWithContents extends Channel {
+  contents: Content[];
+}
+
+export interface PublicContent {
   id: string;
-  contentId: string;
-  position: AdBreakPosition;
-  vastUrl: string;
-  durationSecs: number;
-  createdAt: Date;
+  title: string;
+  type: ContentType;
+  status: ContentStatus;
+  hlsUrl: string | null;
+  durationSec: number | null;
+  createdAt: string;
 }
 
-// ─── Auth DTOs ────────────────────────────────────────────────────────────────
+export interface PublicChannel {
+  name: string;
+  slug: string;
+  logoUrl: string | null;
+  primaryColor: string;
+  isActive: boolean;
+  contents: PublicContent[];
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export interface AuthTokens {
   accessToken: string;
@@ -76,6 +95,20 @@ export interface AuthTokens {
 
 export interface LoginResponse extends AuthTokens {
   user: Pick<User, 'id' | 'email' | 'role' | 'channelId'>;
+}
+
+// ─── Admin ────────────────────────────────────────────────────────────────────
+
+export interface CreateChannelResponse {
+  channel: Channel;
+  liveContent: { id: string; streamKey: string };
+}
+
+// ─── Streaming ────────────────────────────────────────────────────────────────
+
+export interface StreamStatusResponse {
+  content: Content;
+  activeSession: StreamSession | null;
 }
 
 // ─── HTTP ─────────────────────────────────────────────────────────────────────

@@ -7,7 +7,7 @@ import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
 import { TenantModule } from './tenant/tenant.module';
 import { ChannelsModule } from './channels/channels.module';
-import { ContentModule } from './content/content.module';
+import { StreamingModule } from './streaming/streaming.module';
 import { HealthController } from './health/health.controller';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
@@ -29,7 +29,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     AuthModule,
     TenantModule,
     ChannelsModule,
-    ContentModule,
+    StreamingModule,
   ],
   controllers: [HealthController],
   providers: [

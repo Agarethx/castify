@@ -22,20 +22,15 @@ enum Role {
 }
 
 enum ContentType {
-  live
-  vod
+  LIVE
+  VOD
 }
 
 enum ContentStatus {
-  draft
-  published
-  archived
-}
-
-enum AdBreakPosition {
-  preroll
-  midroll
-  postroll
+  INACTIVE
+  ACTIVE
+  PROCESSING
+  ERROR
 }
 
 // ─── Models ───────────────────────────────────────────────────────────────────
@@ -51,8 +46,8 @@ model Channel {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  users   User[]
-  content Content[]
+  users    User[]
+  contents Content[]
 
   @@map("channels")
 }
@@ -66,8 +61,7 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  channel        Channel?        @relation(fields: [channelId], references: [id], onDelete: SetNull)
-  streamSessions StreamSession[]
+  channel Channel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
 
   @@map("users")
 }
@@ -83,51 +77,37 @@ model RefreshToken {
 }
 
 model Content {
-  id           String        @id @default(uuid())
-  channelId    String
-  title        String
-  slug         String
-  type         ContentType
-  status       ContentStatus @default(draft)
-  thumbnailUrl String?
-  duration     Int?
-  publishedAt  DateTime?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id          String        @id @default(uuid())
+  channelId   String
+  title       String
+  type        ContentType   @default(LIVE)
+  status      ContentStatus @default(INACTIVE)
+  streamKey   String        @unique @default(uuid())
+  hlsUrl      String?
+  localPath   String?
+  durationSec Int?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
-  channel        Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  streamSessions StreamSession[]
-  adBreaks       AdBreak[]
+  channel  Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  sessions StreamSession[]
 
-  @@unique([channelId, slug])
   @@map("contents")
 }
 
 model StreamSession {
   id             String    @id @default(uuid())
   contentId      String
-  viewerId       String?
   startedAt      DateTime  @default(now())
   endedAt        DateTime?
-  p2pOffloadPct  Float     @default(0)
   bytesFromPeers BigInt    @default(0)
   bytesFromCdn   BigInt    @default(0)
+  p2pOffloadPct  Float     @default(0)
+  avgLatencyMs   Int       @default(0)
+  peersConnected Int       @default(0)
+  qualityChanges Int       @default(0)
 
   content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
-  viewer  User?   @relation(fields: [viewerId], references: [id], onDelete: SetNull)
 
   @@map("stream_sessions")
-}
-
-model AdBreak {
-  id           String          @id @default(uuid())
-  contentId    String
-  position     AdBreakPosition
-  vastUrl      String
-  durationSecs Int
-  createdAt    DateTime        @default(now())
-
-  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
-
-  @@map("ad_breaks")
 }

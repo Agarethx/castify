@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { serverFetch } from '@/lib/api';
-import type { Channel, Content } from '@castify/types';
+import type { PublicChannel } from '@castify/types';
+import { StreamStatusBadge } from '@/components/castify/stream-status-badge';
 
 interface PageProps {
   params: { tenant: string };
@@ -9,7 +10,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   try {
-    const channel = await serverFetch<Channel>(`/api/channels/${params.tenant}`);
+    const channel = await serverFetch<PublicChannel>(`/api/public/channels/${params.tenant}`);
     return {
       title: `${channel.name} — Castify`,
       openGraph: {
@@ -23,90 +24,80 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function ChannelHomePage({ params }: PageProps): Promise<React.JSX.Element> {
-  let channel: Channel;
-  let content: Content[];
+  let channel: PublicChannel;
 
   try {
-    channel = await serverFetch<Channel>(`/api/channels/${params.tenant}`);
+    channel = await serverFetch<PublicChannel>(`/api/public/channels/${params.tenant}`);
     if (!channel.isActive) notFound();
-    content = await serverFetch<Content[]>(`/api/channels/${channel.id}/content`);
   } catch {
     notFound();
   }
 
+  const liveContent = channel.contents.find((c) => c.type === 'LIVE');
+  const isLive = liveContent?.status === 'ACTIVE';
+
   return (
     <main className="min-h-screen" style={{ '--primary': channel.primaryColor } as React.CSSProperties}>
       {/* Header */}
-      <header
-        className="px-8 py-6 border-b border-white/10 flex items-center gap-4"
-        style={{ borderColor: `${channel.primaryColor}30` }}
-      >
-        {channel.logoUrl && (
-          <img
-            src={channel.logoUrl}
-            alt={channel.name}
-            className="h-10 w-auto object-contain"
-          />
-        )}
-        <div>
+      <header className="px-8 py-6 border-b border-border flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          {channel.logoUrl && (
+            <img src={channel.logoUrl} alt={channel.name} className="h-10 w-auto object-contain" />
+          )}
           <h1 className="text-2xl font-bold">{channel.name}</h1>
-          <span
-            className="text-xs uppercase tracking-widest font-medium"
-            style={{ color: channel.primaryColor }}
-          >
-            {channel.plan}
-          </span>
         </div>
+        {liveContent && <StreamStatusBadge status={liveContent.status} />}
       </header>
 
       {/* Player placeholder */}
       <div className="px-8 pt-8">
-        <div
-          className="w-full aspect-video rounded-2xl flex items-center justify-center text-white/20 text-sm border"
-          style={{ borderColor: `${channel.primaryColor}30`, backgroundColor: `${channel.primaryColor}08` }}
-        >
-          Player P2P — próximamente
+        <div className="w-full aspect-video rounded-2xl border border-border flex flex-col items-center justify-center gap-3 bg-muted/30">
+          {isLive ? (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
+                <span className="text-sm font-medium text-green-400">TRANSMITIENDO EN VIVO</span>
+              </div>
+              <p className="text-xs text-muted-foreground">El player se integrará en el próximo módulo</p>
+            </>
+          ) : (
+            <>
+              <p className="text-muted-foreground font-medium">Próximamente</p>
+              <p className="text-xs text-muted-foreground">Este canal no está transmitiendo en este momento</p>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Content grid */}
-      <section className="px-8 py-10">
-        <h2 className="text-xl font-semibold mb-6">Contenido disponible</h2>
-        {content.length === 0 ? (
-          <p className="text-white/40">No hay contenido publicado aún.</p>
-        ) : (
+      {/* VOD content */}
+      {channel.contents.filter((c) => c.type === 'VOD').length > 0 && (
+        <section className="px-8 py-10">
+          <h2 className="text-xl font-semibold mb-6">Contenido disponible</h2>
           <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {content.map((item) => (
-              <li key={item.id}>
-                <a
-                  href={`/${params.tenant}/vod/${item.slug}`}
-                  className="block rounded-xl overflow-hidden bg-white/5 hover:bg-white/10 transition group"
-                >
-                  {item.thumbnailUrl ? (
-                    <img
-                      src={item.thumbnailUrl}
-                      alt={item.title}
-                      className="w-full aspect-video object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                  ) : (
-                    <div
-                      className="w-full aspect-video"
-                      style={{ backgroundColor: `${channel.primaryColor}20` }}
-                    />
-                  )}
-                  <div className="p-4">
-                    <span className="text-xs uppercase tracking-widest text-white/40">{item.type}</span>
-                    <h3 className="mt-1 font-semibold">{item.title}</h3>
-                    {item.duration && (
-                      <p className="text-xs text-white/40 mt-1">{Math.floor(item.duration / 60)}m</p>
-                    )}
-                  </div>
-                </a>
-              </li>
-            ))}
+            {channel.contents
+              .filter((c) => c.type === 'VOD')
+              .map((item) => (
+                <li key={item.id}>
+                  <a
+                    href={`/${params.tenant}/vod/${item.id}`}
+                    className="block rounded-xl overflow-hidden bg-card border border-border hover:bg-accent/30 transition group"
+                  >
+                    <div className="w-full aspect-video bg-muted/50" />
+                    <div className="p-4">
+                      <span className="text-xs uppercase tracking-widest text-muted-foreground">VOD</span>
+                      <h3 className="mt-1 font-semibold text-sm">{item.title}</h3>
+                      {item.durationSec && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {Math.floor(item.durationSec / 60)}m
+                        </p>
+                      )}
+                    </div>
+                  </a>
+                </li>
+              ))}
           </ul>
-        )}
-      </section>
+        </section>
+      )}
     </main>
   );
 }
