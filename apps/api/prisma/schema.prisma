@@ -7,10 +7,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum ChannelPlan {
-  starter
-  pro
-  enterprise
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Plan {
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum Role {
+  SUPER_ADMIN
+  CHANNEL_ADMIN
+  VIEWER
 }
 
 enum ContentType {
@@ -24,33 +32,54 @@ enum ContentStatus {
   archived
 }
 
-enum UserRole {
-  admin
-  channel_admin
-  viewer
-}
-
 enum AdBreakPosition {
   preroll
   midroll
   postroll
 }
 
+// ─── Models ───────────────────────────────────────────────────────────────────
+
 model Channel {
-  id           String      @id @default(uuid())
+  id           String   @id @default(uuid())
   name         String
-  slug         String      @unique
+  slug         String   @unique
   logoUrl      String?
-  primaryColor String      @default("#000000")
-  plan         ChannelPlan @default(starter)
-  isActive     Boolean     @default(true)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  primaryColor String   @default("#000000")
+  plan         Plan     @default(STARTER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   users   User[]
   content Content[]
 
   @@map("channels")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(CHANNEL_ADMIN)
+  channelId    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  channel        Channel?        @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  streamSessions StreamSession[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
 }
 
 model Content {
@@ -66,7 +95,7 @@ model Content {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  channel        Channel        @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channel        Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
   streamSessions StreamSession[]
   adBreaks       AdBreak[]
 
@@ -74,30 +103,15 @@ model Content {
   @@map("contents")
 }
 
-model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  role         UserRole @default(viewer)
-  channelId    String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  channel        Channel?        @relation(fields: [channelId], references: [id], onDelete: SetNull)
-  streamSessions StreamSession[]
-
-  @@map("users")
-}
-
 model StreamSession {
-  id            String    @id @default(uuid())
-  contentId     String
-  viewerId      String?
-  startedAt     DateTime  @default(now())
-  endedAt       DateTime?
-  p2pOffloadPct Float     @default(0)
-  bytesFromPeers BigInt   @default(0)
-  bytesFromCdn   BigInt   @default(0)
+  id             String    @id @default(uuid())
+  contentId      String
+  viewerId       String?
+  startedAt      DateTime  @default(now())
+  endedAt        DateTime?
+  p2pOffloadPct  Float     @default(0)
+  bytesFromPeers BigInt    @default(0)
+  bytesFromCdn   BigInt    @default(0)
 
   content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
   viewer  User?   @relation(fields: [viewerId], references: [id], onDelete: SetNull)
@@ -106,12 +120,12 @@ model StreamSession {
 }
 
 model AdBreak {
-  id          String          @id @default(uuid())
-  contentId   String
-  position    AdBreakPosition
-  vastUrl     String
+  id           String          @id @default(uuid())
+  contentId    String
+  position     AdBreakPosition
+  vastUrl      String
   durationSecs Int
-  createdAt   DateTime        @default(now())
+  createdAt    DateTime        @default(now())
 
   content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
 

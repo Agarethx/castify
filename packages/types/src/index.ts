@@ -1,4 +1,12 @@
-export type ChannelPlan = 'starter' | 'pro' | 'enterprise';
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+export type Plan = 'STARTER' | 'PRO' | 'ENTERPRISE';
+export type Role = 'SUPER_ADMIN' | 'CHANNEL_ADMIN' | 'VIEWER';
+export type ContentType = 'live' | 'vod';
+export type ContentStatus = 'draft' | 'published' | 'archived';
+export type AdBreakPosition = 'preroll' | 'midroll' | 'postroll';
+
+// ─── Core entities ────────────────────────────────────────────────────────────
 
 export interface Channel {
   id: string;
@@ -6,14 +14,24 @@ export interface Channel {
   slug: string;
   logoUrl: string | null;
   primaryColor: string;
-  plan: ChannelPlan;
+  plan: Plan;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export type ContentType = 'live' | 'vod';
-export type ContentStatus = 'draft' | 'published' | 'archived';
+export interface User {
+  id: string;
+  email: string;
+  role: Role;
+  channelId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface UserWithChannel extends User {
+  channel: Channel | null;
+}
 
 export interface Content {
   id: string;
@@ -29,17 +47,6 @@ export interface Content {
   updatedAt: Date;
 }
 
-export type UserRole = 'admin' | 'channel_admin' | 'viewer';
-
-export interface User {
-  id: string;
-  email: string;
-  role: UserRole;
-  channelId: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 export interface StreamSession {
   id: string;
   contentId: string;
@@ -51,8 +58,6 @@ export interface StreamSession {
   bytesFromCdn: bigint;
 }
 
-export type AdBreakPosition = 'preroll' | 'midroll' | 'postroll';
-
 export interface AdBreak {
   id: string;
   contentId: string;
@@ -61,6 +66,19 @@ export interface AdBreak {
   durationSecs: number;
   createdAt: Date;
 }
+
+// ─── Auth DTOs ────────────────────────────────────────────────────────────────
+
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
+export interface LoginResponse extends AuthTokens {
+  user: Pick<User, 'id' | 'email' | 'role' | 'channelId'>;
+}
+
+// ─── HTTP ─────────────────────────────────────────────────────────────────────
 
 export interface PaginatedResponse<T> {
   data: T[];

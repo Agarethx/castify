@@ -3,12 +3,15 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ApiEnv } from '@castify/validators';
+import { Role } from '@castify/types';
 
 export interface JwtPayload {
   sub: string;
   email: string;
-  role: string;
+  role: Role;
   channelId: string | null;
+  iat?: number;
+  exp?: number;
 }
 
 @Injectable()
