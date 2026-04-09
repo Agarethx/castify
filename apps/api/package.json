@@ -7,7 +7,8 @@
     "dev": "nest start --watch",
     "start": "node dist/main",
     "lint": "tsc --noEmit",
-    "test": "jest --passWithNoTests"
+    "test": "jest --passWithNoTests",
+    "db:seed": "prisma db seed"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
@@ -68,6 +69,7 @@
     "prisma": "^6.2.1",
     "ts-jest": "^29.4.9",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.7.2"
   }
 }

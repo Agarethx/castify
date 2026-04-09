@@ -58,6 +58,8 @@ export const ApiEnvSchema = z.object({
   JWT_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
   STREAMING_SECRET: z.string().min(1).default('dev-secret'),
+  HLS_BASE_URL: z.string().url().default('http://localhost:8081'),
+  SRS_INTERNAL_URL: z.string().url().default('http://localhost:1985'),
   BUNNY_API_KEY: z.string().min(1).default('placeholder'),
   BUNNY_STORAGE_ZONE: z.string().min(1).default('placeholder'),
   PEER5_KEY: z.string().min(1).default('placeholder'),

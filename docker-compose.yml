@@ -31,6 +31,32 @@ services:
       timeout: 5s
       retries: 5
 
+  srs:
+    image: ossrs/srs:6
+    container_name: castify-srs
+    restart: unless-stopped
+    ports:
+      - "1935:1935"   # RTMP ingest (OBS / ffmpeg)
+      - "8080:8080"   # HTTP API de SRS
+      - "1985:1985"   # HTTP API interna (para getSrsStats desde host)
+    volumes:
+      - ./srs/srs.conf:/usr/local/srs/conf/srs.conf
+      - hls_data:/usr/local/srs/objs/nginx/html
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  hls-server:
+    image: nginx:alpine
+    container_name: castify-hls
+    restart: unless-stopped
+    ports:
+      - "8081:80"     # browser: http://localhost:8081/hls/{streamKey}/index.m3u8
+    volumes:
+      - hls_data:/usr/share/nginx/html:ro
+      - ./nginx/hls.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - srs
+
   api:
     build:
       context: ./apps/api
@@ -41,6 +67,8 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-castify}:${POSTGRES_PASSWORD:-castify_secret}@postgres:5432/${POSTGRES_DB:-castify_db}?schema=public
       REDIS_URL: redis://redis:6379
+      HLS_BASE_URL: http://localhost:8081
+      SRS_INTERNAL_URL: http://srs:1985
     ports:
       - "3001:3001"
     volumes:
@@ -73,3 +101,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  hls_data:

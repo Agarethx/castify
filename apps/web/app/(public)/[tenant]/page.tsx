@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { serverFetch } from '@/lib/api';
 import type { PublicChannel } from '@castify/types';
 import { StreamStatusBadge } from '@/components/castify/stream-status-badge';
+import { CastifyPlayer } from '@/components/castify/castify-player';
 
 interface PageProps {
   params: { tenant: string };
@@ -49,24 +50,22 @@ export default async function ChannelHomePage({ params }: PageProps): Promise<Re
         {liveContent && <StreamStatusBadge status={liveContent.status} />}
       </header>
 
-      {/* Player placeholder */}
+      {/* Player */}
       <div className="px-8 pt-8">
-        <div className="w-full aspect-video rounded-2xl border border-border flex flex-col items-center justify-center gap-3 bg-muted/30">
-          {isLive ? (
-            <>
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
-                <span className="text-sm font-medium text-green-400">TRANSMITIENDO EN VIVO</span>
-              </div>
-              <p className="text-xs text-muted-foreground">El player se integrará en el próximo módulo</p>
-            </>
-          ) : (
-            <>
-              <p className="text-muted-foreground font-medium">Próximamente</p>
-              <p className="text-xs text-muted-foreground">Este canal no está transmitiendo en este momento</p>
-            </>
-          )}
-        </div>
+        {isLive && liveContent?.hlsUrl ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
+              <span className="text-sm font-medium text-green-400">EN VIVO</span>
+            </div>
+            <CastifyPlayer src={liveContent.hlsUrl} autoplay className="rounded-2xl" />
+          </div>
+        ) : (
+          <div className="w-full aspect-video rounded-2xl border border-border flex flex-col items-center justify-center gap-3 bg-muted/30">
+            <p className="text-muted-foreground font-medium">Próximamente</p>
+            <p className="text-xs text-muted-foreground">Este canal no está transmitiendo en este momento</p>
+          </div>
+        )}
       </div>
 
       {/* VOD content */}

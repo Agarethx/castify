@@ -3,9 +3,9 @@ import { redirect } from 'next/navigation';
 import { serverFetch } from '@/lib/api';
 import type { ChannelWithContents, Content } from '@castify/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { StreamStatusBadge } from '@/components/castify/stream-status-badge';
 import { StreamKeyInput } from '@/components/castify/stream-key-input';
 import { CopyButton } from '@/components/castify/copy-button';
+import { StreamMonitor } from './_components/stream-monitor';
 
 const RTMP_HOST = process.env['RTMP_HOST'] ?? 'localhost';
 
@@ -34,28 +34,6 @@ export default async function StreamPage(): Promise<React.JSX.Element> {
           Configura tu encoder para comenzar a transmitir
         </p>
       </div>
-
-      {/* Estado del stream */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Estado del stream</CardTitle>
-            {liveContent && <StreamStatusBadge status={liveContent.status} />}
-          </div>
-          <CardDescription>
-            {liveContent?.status === 'ACTIVE'
-              ? 'Tu señal está activa y visible para tu audiencia'
-              : 'Sin señal — conectá tu encoder para comenzar'}
-          </CardDescription>
-        </CardHeader>
-        {!liveContent && (
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              No hay un stream LIVE configurado para este canal.
-            </p>
-          </CardContent>
-        )}
-      </Card>
 
       {/* Configuración del encoder */}
       {liveContent ? (
@@ -99,24 +77,23 @@ export default async function StreamPage(): Promise<React.JSX.Element> {
             </div>
           </CardContent>
         </Card>
-      ) : null}
-
-      {/* HLS URL si está activo */}
-      {liveContent?.status === 'ACTIVE' && liveContent.hlsUrl && (
+      ) : (
         <Card>
-          <CardHeader>
-            <CardTitle>URL de reproducción HLS</CardTitle>
-            <CardDescription>Para reproductores y CDN</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 rounded-md bg-muted px-3 py-2 text-xs font-mono text-muted-foreground break-all">
-                {liveContent.hlsUrl}
-              </code>
-              <CopyButton value={liveContent.hlsUrl} />
-            </div>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">
+              No hay un stream LIVE configurado para este canal.
+            </p>
           </CardContent>
         </Card>
+      )}
+
+      {/* Monitor con polling — client component */}
+      {liveContent && (
+        <StreamMonitor
+          streamKey={liveContent.streamKey}
+          initialStatus={liveContent.status}
+          initialHlsUrl={liveContent.hlsUrl}
+        />
       )}
     </div>
   );
