@@ -91,6 +91,8 @@ export default async function StreamPage(): Promise<React.JSX.Element> {
       {liveContent && (
         <StreamMonitor
           streamKey={liveContent.streamKey}
+          contentId={liveContent.id}
+          channelId={channel.id}
           initialStatus={liveContent.status}
           initialHlsUrl={liveContent.hlsUrl}
         />

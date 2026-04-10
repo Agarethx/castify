@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   Param,
   Post,
@@ -12,6 +13,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { FastifyRequest } from 'fastify';
 import { ApiEnv } from '@castify/validators';
+import type { NetworkConfig } from '@castify/types';
 import { Public } from '../auth/decorators/public.decorator';
 import { StreamingService } from './streaming.service';
 
@@ -86,5 +88,34 @@ export class StreamingController {
   async health(): Promise<{ srsReachable: boolean; activeStreams: number }> {
     const { srsReachable, activeStreams } = await this.streamingService.getSrsStats();
     return { srsReachable, activeStreams };
+  }
+
+  // ── Session snapshot ──────────────────────────────────────────────────────
+
+  @Public()
+  @Post('session/snapshot')
+  @HttpCode(204)
+  async saveSnapshot(
+    @Headers('x-session-token') sessionToken: string,
+    @Body() body: unknown,
+  ): Promise<void> {
+    // Validación mínima: el token debe existir y ser un UUID
+    if (!sessionToken || !/^[0-9a-f-]{36}$/.test(sessionToken)) return;
+    await this.streamingService.saveSnapshot(body);
+  }
+
+  // ── Network config (consumed by Scheduler) ────────────────────────────────
+
+  @Public()
+  @Get('config/:channelId')
+  async getNetworkConfig(
+    @Param('channelId') channelId: string,
+    @Req() req: FastifyRequest,
+  ): Promise<NetworkConfig> {
+    const config = await this.streamingService.getNetworkConfig(channelId);
+    // Cache-Control: max-age=60 (Fastify reply header)
+    void (req as FastifyRequest & { raw: { res?: { setHeader?: (k: string, v: string) => void } } })
+      .raw?.res?.setHeader?.('Cache-Control', 'public, max-age=60');
+    return config;
   }
 }

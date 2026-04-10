@@ -62,7 +62,8 @@ export default async function ChannelHomePage({ params }: PageProps): Promise<Re
               src={liveContent.hlsUrl}
               isLive
               autoplay
-              onEvent={(event) => console.log('[Player Event]', event)}
+              contentId={liveContent.id}
+              channelId={channel.id}
               className="rounded-2xl"
             />
           </div>

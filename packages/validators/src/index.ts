@@ -77,3 +77,28 @@ export const WebEnvSchema = z.object({
 });
 
 export type WebEnv = z.infer<typeof WebEnvSchema>;
+
+// ─── SessionSnapshot ──────────────────────────────────────────────────────────
+
+export const SessionSnapshotSchema = z.object({
+  sessionId:             z.string().uuid(),
+  contentId:             z.string().uuid(),
+  channelId:             z.string().uuid(),
+  timestamp:             z.number().int().positive(),
+  status:                z.enum(['idle', 'loading', 'playing', 'paused', 'buffering', 'error', 'ended']),
+  currentTimeMs:         z.number().min(0),
+  bufferAheadSec:        z.number().min(0),
+  qualityHeight:         z.number().int().min(0),
+  peersConnected:        z.number().int().min(0),
+  bytesFromPeers:        z.number().min(0),
+  bytesFromCdn:          z.number().min(0),
+  p2pOffloadPct:         z.number().min(0).max(100),
+  estimatedBandwidthKbps:z.number().min(0),
+  avgPeerLatencyMs:      z.number().min(0),
+  bufferingEvents:       z.number().int().min(0),
+  qualityChanges:        z.number().int().min(0),
+  segmentsFromPeer:      z.number().int().min(0),
+  segmentsFromCdn:       z.number().int().min(0),
+});
+
+export type SessionSnapshotDto = z.infer<typeof SessionSnapshotSchema>;

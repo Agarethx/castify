@@ -86,6 +86,7 @@ export class ChannelsService {
     if (!channel || !channel.isActive) throw new NotFoundException('Canal no encontrado');
 
     return {
+      id: channel.id,
       name: channel.name,
       slug: channel.slug,
       logoUrl: channel.logoUrl,

@@ -9,11 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 interface StreamMonitorProps {
   streamKey: string;
+  contentId: string;
+  channelId: string;
   initialStatus: ContentStatus;
   initialHlsUrl: string | null;
 }
 
-export function StreamMonitor({ streamKey, initialStatus, initialHlsUrl }: StreamMonitorProps) {
+export function StreamMonitor({ streamKey, contentId, channelId, initialStatus, initialHlsUrl }: StreamMonitorProps) {
   const [status, setStatus] = useState<ContentStatus>(initialStatus);
   const [hlsUrl, setHlsUrl] = useState<string | null>(initialHlsUrl);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -57,6 +59,8 @@ export function StreamMonitor({ streamKey, initialStatus, initialHlsUrl }: Strea
             isLive
             autoplay
             muted
+            contentId={contentId}
+            channelId={channelId}
             onEvent={(event) => console.log('[Player Event]', event)}
             className="rounded-lg"
           />

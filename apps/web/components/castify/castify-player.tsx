@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import Hls from 'hls.js';
 import { cn } from '@/lib/utils';
-import type { PlayerEvent, PlayerState, QualityLevel } from '@castify/types';
+import type { PlayerEvent, PlayerState, QualityLevel, NetworkConfig } from '@castify/types';
 import { PlayerControls } from './player-controls';
+import { CastifyScheduler } from '@/lib/p2p/scheduler';
+import { SessionReporter } from '@/lib/p2p/session-reporter';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -14,9 +16,15 @@ export interface CastifyPlayerProps {
   autoplay?: boolean;
   muted?: boolean;
   className?: string;
-  /** Hook para el Scheduler P2P (Prompt 05) */
+  /** contentId para el SessionReporter */
+  contentId?: string;
+  /** channelId para la config del NIS */
+  channelId?: string;
+  /** Activar P2P (default: true si contentId+channelId están presentes) */
+  p2pEnabled?: boolean;
+  /** Hook para el Scheduler P2P */
   onEvent?: (event: PlayerEvent) => void;
-  /** Hook para el SessionReporter (Prompt 05) */
+  /** Hook para el SessionReporter */
   onStateChange?: (state: PlayerState) => void;
 }
 
@@ -30,7 +38,8 @@ type Action =
   | { type: 'SET_QUALITY'; quality: QualityLevel | null }
   | { type: 'SET_VOLUME'; volume: number }
   | { type: 'SET_MUTED'; muted: boolean }
-  | { type: 'SET_LIVE'; isLive: boolean };
+  | { type: 'SET_LIVE'; isLive: boolean }
+  | { type: 'SET_P2P_STATS'; peersConnected: number; bytesFromPeers: number; bytesFromCdn: number; p2pEnabled: boolean; p2pOffloadPct: number };
 
 function makeInitialState(isLive: boolean, muted: boolean): PlayerState {
   return {
@@ -43,23 +52,33 @@ function makeInitialState(isLive: boolean, muted: boolean): PlayerState {
     volume: 1,
     muted,
     isLive,
-    p2pEnabled: false,    // Prompt 05: el Scheduler activa esto
-    bytesFromPeers: 0,    // Prompt 05: el Scheduler actualiza esto
-    bytesFromCdn: 0,      // Prompt 05: el Scheduler actualiza esto
+    p2pEnabled: false,
+    bytesFromPeers: 0,
+    bytesFromCdn: 0,
+    peersConnected: 0,
+    p2pOffloadPct: 0,
   };
 }
 
 function reducer(state: PlayerState, action: Action): PlayerState {
   switch (action.type) {
-    case 'SET_STATUS':     return { ...state, status: action.status };
-    case 'SET_TIME':       return { ...state, currentTime: action.currentTime, buffered: action.buffered };
-    case 'SET_DURATION':   return { ...state, duration: action.duration };
-    case 'SET_QUALITIES':  return { ...state, availableQualities: action.qualities, quality: action.current };
-    case 'SET_QUALITY':    return { ...state, quality: action.quality };
-    case 'SET_VOLUME':     return { ...state, volume: action.volume };
-    case 'SET_MUTED':      return { ...state, muted: action.muted };
-    case 'SET_LIVE':       return { ...state, isLive: action.isLive };
-    default:               return state;
+    case 'SET_STATUS':    return { ...state, status: action.status };
+    case 'SET_TIME':      return { ...state, currentTime: action.currentTime, buffered: action.buffered };
+    case 'SET_DURATION':  return { ...state, duration: action.duration };
+    case 'SET_QUALITIES': return { ...state, availableQualities: action.qualities, quality: action.current };
+    case 'SET_QUALITY':   return { ...state, quality: action.quality };
+    case 'SET_VOLUME':    return { ...state, volume: action.volume };
+    case 'SET_MUTED':     return { ...state, muted: action.muted };
+    case 'SET_LIVE':      return { ...state, isLive: action.isLive };
+    case 'SET_P2P_STATS': return {
+      ...state,
+      p2pEnabled: action.p2pEnabled,
+      bytesFromPeers: action.bytesFromPeers,
+      bytesFromCdn: action.bytesFromCdn,
+      peersConnected: action.peersConnected,
+      p2pOffloadPct: action.p2pOffloadPct,
+    };
+    default: return state;
   }
 }
 
@@ -83,6 +102,12 @@ function getBufferedAhead(video: HTMLVideoElement): number {
   return 0;
 }
 
+async function fetchNetworkConfig(apiUrl: string, channelId: string): Promise<NetworkConfig> {
+  const res = await fetch(`${apiUrl}/api/streaming/config/${channelId}`);
+  if (!res.ok) throw new Error('config fetch failed');
+  return res.json() as Promise<NetworkConfig>;
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function CastifyPlayer({
@@ -91,28 +116,35 @@ export function CastifyPlayer({
   autoplay = false,
   muted = false,
   className,
+  contentId,
+  channelId,
+  p2pEnabled: p2pEnabledProp = true,
   onEvent,
   onStateChange,
 }: CastifyPlayerProps): React.JSX.Element {
-  const videoRef    = useRef<HTMLVideoElement>(null);
-  const hlsRef      = useRef<Hls | null>(null);
+  const videoRef     = useRef<HTMLVideoElement>(null);
+  const hlsRef       = useRef<Hls | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevQualityRef = useRef<number>(-1);
 
+  // P2P module refs — tracker is dynamic (bittorrent-tracker has Node.js deps); others are static
+  const trackerRef   = useRef<import('@/lib/p2p/tracker').P2PTracker | null>(null);
+  const schedulerRef = useRef<CastifyScheduler | null>(null);
+  const reporterRef  = useRef<SessionReporter | null>(null);
+
   const [state, dispatch] = useReducer(reducer, makeInitialState(isLive, muted));
   const stateRef = useRef(state);
-
-  // Keep stateRef in sync for use inside callbacks
   useEffect(() => { stateRef.current = state; }, [state]);
-
-  // Notify parent on every state change
   useEffect(() => { onStateChange?.(state); }, [state, onStateChange]);
 
   // ── Event emitter ──────────────────────────────────────────────────────────
 
   const emitEvent = useCallback(
     (type: PlayerEvent['type'], data?: Record<string, unknown>) => {
-      onEvent?.({ type, timestamp: Date.now(), data });
+      const event: PlayerEvent = { type, timestamp: Date.now(), data };
+      onEvent?.(event);
+      // Forward to reporter for counters (if active)
+      reporterRef.current?.recordEvent(type, data);
     },
     [onEvent],
   );
@@ -122,29 +154,24 @@ export function CastifyPlayer({
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    // Capture as HTMLVideoElement so closures below see the narrowed type
     const v: HTMLVideoElement = video;
 
-    function onPlay()   { dispatch({ type: 'SET_STATUS', status: 'playing' }); emitEvent('play'); }
-    function onPause()  { dispatch({ type: 'SET_STATUS', status: 'paused' });  emitEvent('pause'); }
-    function onEnded()  { dispatch({ type: 'SET_STATUS', status: 'ended' });   emitEvent('ended'); }
-    function onWaiting(){ dispatch({ type: 'SET_STATUS', status: 'buffering' }); emitEvent('buffering_start'); }
-    function onCanPlay(){ dispatch({ type: 'SET_STATUS', status: v.paused ? 'paused' : 'playing' }); emitEvent('buffering_end'); }
+    function onPlay()    { dispatch({ type: 'SET_STATUS', status: 'playing' }); emitEvent('play'); }
+    function onPause()   { dispatch({ type: 'SET_STATUS', status: 'paused' });  emitEvent('pause'); }
+    function onEnded()   { dispatch({ type: 'SET_STATUS', status: 'ended' });   emitEvent('ended'); }
+    function onWaiting() { dispatch({ type: 'SET_STATUS', status: 'buffering' }); emitEvent('buffering_start'); }
+    function onCanPlay() { dispatch({ type: 'SET_STATUS', status: v.paused ? 'paused' : 'playing' }); emitEvent('buffering_end'); }
     function onTimeUpdate() {
       dispatch({ type: 'SET_TIME', currentTime: v.currentTime, buffered: getBufferedAhead(v) });
     }
     function onDurationChange() {
-      if (Number.isFinite(v.duration)) {
-        dispatch({ type: 'SET_DURATION', duration: v.duration });
-      }
+      if (Number.isFinite(v.duration)) dispatch({ type: 'SET_DURATION', duration: v.duration });
     }
     function onVolumeChange() {
       dispatch({ type: 'SET_VOLUME', volume: v.volume });
       dispatch({ type: 'SET_MUTED', muted: v.muted });
     }
-    function onSeeked() {
-      emitEvent('seek', { time: v.currentTime });
-    }
+    function onSeeked() { emitEvent('seek', { time: v.currentTime }); }
 
     v.addEventListener('play',           onPlay);
     v.addEventListener('pause',          onPause);
@@ -169,178 +196,247 @@ export function CastifyPlayer({
     };
   }, [emitEvent]);
 
-  // ── HLS initialization ─────────────────────────────────────────────────────
+  // ── HLS + P2P initialization ───────────────────────────────────────────────
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !src) return;
+    // Capture as HTMLVideoElement so async closures below see the non-null type
+    const v: HTMLVideoElement = video;
 
     dispatch({ type: 'SET_STATUS', status: 'loading' });
 
-    // Safari / iOS — native HLS
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = src;
-      if (autoplay) void video.play();
-      return () => { video.src = ''; };
+    const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001';
+
+    // Instanciar reporter SÍNCRONAMENTE — antes de cualquier await
+    // Así StrictMode no puede destruirlo entre el mount y el MANIFEST_PARSED
+    if (contentId && channelId) {
+      const reporter = new SessionReporter(contentId, channelId, apiUrl);
+      reporterRef.current = reporter;
+      console.log('[P2P] reporter created synchronously');
     }
 
+    // Priorizar hls.js — necesitamos sus eventos para Session Reporter y Scheduler P2P.
+    // Chrome/Firefox/Edge soportan hls.js y también responden "maybe" a canPlayType,
+    // así que hls.js debe ir primero para no caer en el path nativo por error.
     if (!Hls.isSupported()) {
+      if (v.canPlayType('application/vnd.apple.mpegurl')) {
+        // Solo Safari / iOS — HLS nativo. Reporter no disponible en este path.
+        v.src = src;
+        v.muted = true;
+        if (autoplay) void v.play().catch(() => null);
+        return () => { v.src = ''; };
+      }
+      // Browser no soporta HLS de ninguna forma
       dispatch({ type: 'SET_STATUS', status: 'error' });
       emitEvent('error', { details: 'HLS_NOT_SUPPORTED' });
       return;
     }
 
-    // Destroy any previous instance — critical to avoid memory leaks
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
+    // Destroy previous instance
+    if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+
+    const shouldUseP2P = p2pEnabledProp && !!contentId && !!channelId;
 
     const hlsConfig: Partial<Hls['config']> = {
-      // ABR
       startLevel: -1,
       abrEwmaDefaultEstimate: 500_000,
       abrBandWidthFactor: 0.95,
       abrBandWidthUpFactor: 0.7,
-      // Buffer
       maxBufferLength:    isLive ? 30 : 60,
       maxMaxBufferLength: isLive ? 60 : 600,
-      liveSyncDurationCount:        3,
-      liveMaxLatencyDurationCount:  10,
-      // Retry
+      liveSyncDurationCount: 3,
+      liveMaxLatencyDurationCount: 10,
       manifestLoadingMaxRetry: 3,
       levelLoadingMaxRetry:    3,
       fragLoadingMaxRetry:     3,
-      // Prompt 05: loader: SchedulerLoader  ← el Scheduler reemplaza el loader aquí
     };
 
-    const hls = new Hls(hlsConfig);
-    hlsRef.current = hls;
+    // Async init — must run in browser, wrapped to avoid blocking
+    let cancelled = false;
 
-    // ── Manifest ──────────────────────────────────────────────────────────────
+    async function initP2PAndHls() {
+      console.log('[P2P] init started');
+      let loaderCtor: Hls['config']['loader'] | undefined;
 
-    hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
-      const qualities: QualityLevel[] = data.levels.map((l, i) => ({
-        index: i,
-        height: l.height,
-        bitrate: l.bitrate,
-        name: buildQualityName(l.height),
-      }));
-      dispatch({ type: 'SET_QUALITIES', qualities, current: qualities[hls.currentLevel] ?? null });
-      if (autoplay) void video.play();
-    });
+      // 1. P2P — intento independiente; si falla, el reporter ya existe
+      if (shouldUseP2P) {
+        try {
+          const networkConfig = await fetchNetworkConfig(apiUrl, channelId!);
 
-    // ── Quality / Level ───────────────────────────────────────────────────────
+          const { P2PTracker, deriveInfoHash } = await import('@/lib/p2p/tracker');
+          const tracker = new P2PTracker();
+          trackerRef.current = tracker;
 
-    hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => {
-      const levels = hls.levels;
-      const level  = levels[data.level];
-      if (!level) return;
-      const quality: QualityLevel = {
-        index:   data.level,
-        height:  level.height,
-        bitrate: level.bitrate,
-        name:    buildQualityName(level.height),
-      };
-      dispatch({ type: 'SET_QUALITY', quality });
-      emitEvent('quality_change', {
-        from:     prevQualityRef.current,
-        to:       data.level,
-        manual:   false,  // el Scheduler diferencia manual vs automático
-      });
-      prevQualityRef.current = data.level;
-    });
+          await tracker.connect({
+            announceUrl: process.env['NEXT_PUBLIC_TRACKER_URL'] ?? 'ws://localhost:1337/announce',
+            infoHash:    deriveInfoHash(src, stateRef.current.quality?.height ?? 720),
+            peerId:      crypto.randomUUID(),
+          });
 
-    // ── Segments — punto de conexión del Scheduler ───────────────────────────
-    // Prompt 05: el SchedulerLoader llama onEvent('segment_loaded') con source:'peer'|'cdn'
-    // Por ahora todos los segmentos vienen de CDN
-    // Usamos FRAG_BUFFERED porque tiene stats.loading con timing y stats.loaded con bytes
-
-    hls.on(Hls.Events.FRAG_BUFFERED, (_e, data) => {
-      const level = hls.levels[data.frag.level];
-      emitEvent('segment_loaded', {
-        url:       data.frag.url,
-        source:    'cdn',    // Prompt 05: el Scheduler sobreescribe con 'peer' si aplica
-        latencyMs: data.stats.loading.end - data.stats.loading.start,
-        sizeBytes: data.stats.loaded,
-        quality:   level ? buildQualityName(level.height) : 'unknown',
-      });
-    });
-
-    // ── Buffer events ─────────────────────────────────────────────────────────
-
-    hls.on(Hls.Events.BUFFER_APPENDING, () => {
-      dispatch({ type: 'SET_STATUS', status: 'buffering' });
-      emitEvent('buffering_start');
-    });
-
-    hls.on(Hls.Events.BUFFER_APPENDED, () => {
-      // Only clear buffering if video is already playing
-      if (!video.paused) {
-        dispatch({ type: 'SET_STATUS', status: 'playing' });
-        emitEvent('buffering_end');
+          const scheduler = new CastifyScheduler(tracker, networkConfig);
+          schedulerRef.current = scheduler;
+          loaderCtor = scheduler.createLoader();
+        } catch (err) {
+          // Tracker no disponible — CDN fallback, el reporter sigue corriendo
+          console.debug('[CastifyPlayer] P2P init failed (CDN fallback):', err);
+        }
       }
-    });
 
-    // ── Errors ────────────────────────────────────────────────────────────────
+      if (cancelled) return;
 
-    hls.on(Hls.Events.ERROR, (_e, data) => {
-      if (!data.fatal) return;
+      // 5. Create hls.js — with SchedulerLoader if available
+      const hls = new Hls(loaderCtor ? { ...hlsConfig, loader: loaderCtor } : hlsConfig);
+      hlsRef.current = hls;
 
-      switch (data.type) {
-        case Hls.ErrorTypes.NETWORK_ERROR:
-          // For live streams: keep retrying (stream may resume)
-          // MANIFEST_LOAD_ERROR → sin señal
-          if (data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR) {
+      // ── Manifest ────────────────────────────────────────────────────────────
+      hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
+        console.log('[HLS] MANIFEST_PARSED, reporterRef:', reporterRef.current);
+        const qualities: QualityLevel[] = data.levels.map((l, i) => ({
+          index: i,
+          height: l.height,
+          bitrate: l.bitrate,
+          name: buildQualityName(l.height),
+        }));
+        dispatch({ type: 'SET_QUALITIES', qualities, current: qualities[hls.currentLevel] ?? null });
+
+        // Start reporter — independiente del éxito de autoplay
+        reporterRef.current?.start(() => stateRef.current);
+
+        if (autoplay) {
+          v.muted = true;
+          void v.play().catch(() => null);
+        }
+      });
+
+      // ── Quality ─────────────────────────────────────────────────────────────
+      hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => {
+        const level = hls.levels[data.level];
+        if (!level) return;
+        const quality: QualityLevel = {
+          index: data.level,
+          height: level.height,
+          bitrate: level.bitrate,
+          name: buildQualityName(level.height),
+        };
+        dispatch({ type: 'SET_QUALITY', quality });
+        emitEvent('quality_change', { from: prevQualityRef.current, to: data.level, manual: false });
+        prevQualityRef.current = data.level;
+        // Notify scheduler — invalidates the peer swarm for the old quality
+        schedulerRef.current?.onQualityChange(level.height);
+      });
+
+      // ── Segments ─────────────────────────────────────────────────────────────
+      hls.on(Hls.Events.FRAG_BUFFERED, (_e, data) => {
+        const level = hls.levels[data.frag.level];
+        const source = (window as Window & { __castifyLastSegmentSource?: string }).__castifyLastSegmentSource ?? 'cdn';
+        (window as Window & { __castifyLastSegmentSource?: string }).__castifyLastSegmentSource = undefined;
+
+        emitEvent('segment_loaded', {
+          url:       data.frag.url,
+          source,
+          latencyMs: data.stats.loading.end - data.stats.loading.start,
+          sizeBytes: data.stats.loaded,
+          quality:   level ? buildQualityName(level.height) : 'unknown',
+        });
+      });
+
+      // ── Buffer ───────────────────────────────────────────────────────────────
+      hls.on(Hls.Events.BUFFER_APPENDING, () => {
+        dispatch({ type: 'SET_STATUS', status: 'buffering' });
+        emitEvent('buffering_start');
+      });
+      hls.on(Hls.Events.BUFFER_APPENDED, () => {
+        if (!v.paused) {
+          dispatch({ type: 'SET_STATUS', status: 'playing' });
+          emitEvent('buffering_end');
+        }
+      });
+
+      // ── Errors ───────────────────────────────────────────────────────────────
+      hls.on(Hls.Events.ERROR, (_e, data) => {
+        if (!data.fatal) return;
+        switch (data.type) {
+          case Hls.ErrorTypes.NETWORK_ERROR:
+            if (data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR) {
+              dispatch({ type: 'SET_STATUS', status: 'error' });
+              emitEvent('error', { type: data.type, details: data.details });
+            } else {
+              hls.startLoad();
+            }
+            break;
+          case Hls.ErrorTypes.MEDIA_ERROR:
+            hls.recoverMediaError();
+            break;
+          default:
             dispatch({ type: 'SET_STATUS', status: 'error' });
             emitEvent('error', { type: data.type, details: data.details });
-          } else {
-            hls.startLoad();
-          }
-          break;
-        case Hls.ErrorTypes.MEDIA_ERROR:
-          hls.recoverMediaError();
-          break;
-        default:
-          dispatch({ type: 'SET_STATUS', status: 'error' });
-          emitEvent('error', { type: data.type, details: data.details });
+        }
+      });
+
+      hls.loadSource(src);
+      hls.attachMedia(v);
+
+      // ── NIS config refresh every 5 minutes ───────────────────────────────────
+      let configRefreshInterval: ReturnType<typeof setInterval> | null = null;
+      if (shouldUseP2P && channelId) {
+        configRefreshInterval = setInterval(() => {
+          fetchNetworkConfig(apiUrl, channelId)
+            .then((cfg) => schedulerRef.current?.updateNetworkConfig(cfg))
+            .catch(() => null);
+        }, 5 * 60 * 1000);
       }
-    });
 
-    hls.loadSource(src);
-    hls.attachMedia(video);
+      // Store cleanup ref
+      (hlsRef as React.MutableRefObject<Hls & { _configRefreshInterval?: ReturnType<typeof setInterval> }>)
+        .current!._configRefreshInterval = configRefreshInterval ?? undefined;
+    }
 
-    // ── Cleanup — CRITICAL: always destroy to avoid memory leaks ──────────────
+    void initP2PAndHls();
+
+    // ── Cleanup — CRITICAL: reporter → tracker → hls, in that order ──────────
     return () => {
-      hls.destroy();
-      hlsRef.current = null;
+      console.log('[P2P] cleanup called');
+      cancelled = true;
+
+      reporterRef.current?.stop();
+      reporterRef.current = null;
+
+      trackerRef.current?.destroy();
+      trackerRef.current = null;
+
+      schedulerRef.current = null;
+
+      const hls = hlsRef.current as (Hls & { _configRefreshInterval?: ReturnType<typeof setInterval> }) | null;
+      if (hls) {
+        if (hls._configRefreshInterval) clearInterval(hls._configRefreshInterval);
+        hls.destroy();
+        hlsRef.current = null;
+      }
     };
-  }, [src, isLive, autoplay, emitEvent]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src, isLive, autoplay]);
 
   // ── Control handlers ───────────────────────────────────────────────────────
 
   function handlePlay()  { void videoRef.current?.play(); }
   function handlePause() { videoRef.current?.pause(); }
-
   function handleSeek(time: number) {
     if (videoRef.current) videoRef.current.currentTime = time;
   }
-
   function handleVolumeChange(volume: number) {
     if (!videoRef.current) return;
     videoRef.current.volume = volume;
     videoRef.current.muted = volume === 0;
   }
-
   function handleMuteToggle() {
     if (!videoRef.current) return;
     videoRef.current.muted = !videoRef.current.muted;
   }
-
   function handleQualityChange(index: number) {
     const hls = hlsRef.current;
     if (!hls) return;
-    hls.currentLevel = index;  // -1 = auto ABR
+    hls.currentLevel = index;
     const level = index >= 0 ? hls.levels[index] : null;
     const quality: QualityLevel | null = level
       ? { index, height: level.height, bitrate: level.bitrate, name: buildQualityName(level.height) }
@@ -348,6 +444,7 @@ export function CastifyPlayer({
     dispatch({ type: 'SET_QUALITY', quality });
     emitEvent('quality_change', { from: prevQualityRef.current, to: index, manual: true });
     prevQualityRef.current = index;
+    schedulerRef.current?.onQualityChange(level?.height ?? 0);
   }
 
   // ── Overlays ───────────────────────────────────────────────────────────────
@@ -361,7 +458,7 @@ export function CastifyPlayer({
     >
       <video
         ref={videoRef}
-        muted={muted}
+        muted
         playsInline
         className="w-full h-full object-contain"
       />
@@ -377,9 +474,7 @@ export function CastifyPlayer({
       {/* Overlay: loading / idle */}
       {(status === 'loading' || status === 'idle') && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-          <div className="flex flex-col items-center gap-2">
-            <div className="h-8 w-8 rounded-full border-2 border-white border-t-transparent animate-spin" />
-          </div>
+          <div className="h-8 w-8 rounded-full border-2 border-white border-t-transparent animate-spin" />
         </div>
       )}
 
@@ -406,11 +501,11 @@ export function CastifyPlayer({
               aria-label="Reintentar"
               onClick={() => {
                 const hls = hlsRef.current;
-                const video = videoRef.current;
-                if (!hls || !video) return;
+                const vid = videoRef.current;
+                if (!hls || !vid) return;
                 dispatch({ type: 'SET_STATUS', status: 'loading' });
                 hls.loadSource(src);
-                hls.attachMedia(video);
+                hls.attachMedia(vid);
               }}
               className="text-xs text-white/60 underline hover:text-white transition-colors"
             >

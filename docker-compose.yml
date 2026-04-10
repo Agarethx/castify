@@ -57,6 +57,15 @@ services:
     depends_on:
       - srs
 
+  tracker:
+    build:
+      context: ./tracker
+      dockerfile: Dockerfile
+    container_name: castify-tracker
+    restart: unless-stopped
+    ports:
+      - "1337:1337"
+
   api:
     build:
       context: ./apps/api

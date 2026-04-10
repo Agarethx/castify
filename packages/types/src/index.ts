@@ -78,6 +78,7 @@ export interface PublicContent {
 }
 
 export interface PublicChannel {
+  id: string;
   name: string;
   slug: string;
   logoUrl: string | null;
@@ -173,10 +174,53 @@ export interface PlayerState {
   volume: number;
   muted: boolean;
   isLive: boolean;
-  /** El Scheduler cambia esto en Prompt 05 */
   p2pEnabled: boolean;
-  /** El Scheduler actualiza esto en Prompt 05 */
   bytesFromPeers: number;
-  /** El Scheduler actualiza esto en Prompt 05 */
   bytesFromCdn: number;
+  /** Peers activos — el Scheduler actualiza esto */
+  peersConnected: number;
+  /** % de bytes servidos por peers — el Scheduler actualiza esto */
+  p2pOffloadPct: number;
+}
+
+// ─── Session snapshot & NIS ───────────────────────────────────────────────────
+
+/** Snapshot que el Session Reporter envía al servidor cada 5 segundos */
+export interface SessionSnapshot {
+  sessionId: string;
+  contentId: string;
+  channelId: string;
+  timestamp: number;
+  // Estado del player
+  status: PlayerState['status'];
+  currentTimeMs: number;
+  bufferAheadSec: number;
+  qualityHeight: number;
+  // Estado P2P
+  peersConnected: number;
+  bytesFromPeers: number;
+  bytesFromCdn: number;
+  p2pOffloadPct: number;
+  // Red
+  estimatedBandwidthKbps: number;
+  avgPeerLatencyMs: number;
+  // Eventos del intervalo
+  bufferingEvents: number;
+  qualityChanges: number;
+  segmentsFromPeer: number;
+  segmentsFromCdn: number;
+}
+
+/** Configuración que el NIS publica y el Scheduler consume */
+export interface NetworkConfig {
+  channelId: string;
+  updatedAt: number;
+  // Umbrales del Scheduler
+  minBufferToUsePeerSec: number;
+  maxPeerLatencyMs: number;
+  peerScoreThreshold: number;
+  // Contexto de la red
+  topIspsByOffload: string[];
+  peakHours: number[];
+  avgNetworkOffloadPct: number;
 }
