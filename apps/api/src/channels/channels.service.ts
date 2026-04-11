@@ -41,6 +41,16 @@ export class ChannelsService {
     };
   }
 
+  // ── Listar contenidos del canal ───────────────────────────────────────────
+
+  async getMyContents(channelId: string): Promise<Content[]> {
+    const contents = await this.prisma.content.findMany({
+      where: { channelId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return contents.map((c) => ({ ...c, createdAt: c.createdAt.toISOString() })) as unknown as Content[];
+  }
+
   // ── Crear contenido ────────────────────────────────────────────────────────
 
   async createContent(channelId: string, dto: CreateContentDto): Promise<Content> {

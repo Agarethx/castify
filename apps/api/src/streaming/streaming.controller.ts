@@ -83,6 +83,16 @@ export class StreamingController {
     return this.streamingService.getStatus(streamKey);
   }
 
+  // ── WebRTC / WHIP config ──────────────────────────────────────────────────
+
+  @Public()
+  @Get('whip-config/:streamKey')
+  async getWhipConfig(
+    @Param('streamKey') streamKey: string,
+  ): Promise<{ whipUrl: string; iceServers: { urls: string[] }[] }> {
+    return this.streamingService.getWhipConfig(streamKey);
+  }
+
   @Public()
   @Get('health')
   async health(): Promise<{ srsReachable: boolean; activeStreams: number }> {

@@ -129,11 +129,73 @@ export class ApiClient {
       this.fetch<PublicChannel>(`/api/public/channels/${slug}`),
   };
 
+  // ── VOD ────────────────────────────────────────────────────────────────────
+
+  vod = {
+    upload: (
+      file: File,
+      onProgress?: (pct: number) => void,
+    ): Promise<{ contentId: string; status: string }> =>
+      new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const formData = new FormData();
+        formData.append('file', file);
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable && onProgress) {
+            onProgress(Math.round((e.loaded / e.total) * 100));
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(JSON.parse(xhr.responseText) as { contentId: string; status: string });
+          } else {
+            try {
+              const err = JSON.parse(xhr.responseText) as { message?: string };
+              reject(new ApiClientError(xhr.status, err.message ?? xhr.statusText));
+            } catch {
+              reject(new ApiClientError(xhr.status, xhr.statusText));
+            }
+          }
+        };
+
+        xhr.onerror = () => reject(new ApiClientError(0, 'Network error'));
+
+        const token = typeof document !== 'undefined'
+          ? (document.cookie.match(/castify_access_token=([^;]+)/) ?? [])[1]
+          : undefined;
+        const slug = typeof document !== 'undefined'
+          ? (document.cookie.match(/castify_tenant=([^;]+)/) ?? [])[1]
+          : undefined;
+
+        xhr.open('POST', `${API_URL}/api/channels/me/vod/upload`);
+        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        if (slug)  xhr.setRequestHeader('X-Tenant-Slug', slug);
+        xhr.send(formData);
+      }),
+
+    getStatus: (contentId: string): Promise<{
+      contentId: string;
+      status: string;
+      hlsUrl: string | null;
+      durationSec: number | null;
+    }> => this.fetch(`/api/channels/me/vod/status/${contentId}`),
+
+    getMyContents: (): Promise<Content[]> =>
+      this.fetch<Content[]>('/api/channels/me/content'),
+  };
+
   // ── Streaming ──────────────────────────────────────────────────────────────
 
   streaming = {
     getStatus: (streamKey: string): Promise<StreamStatusResponse> =>
       this.fetch<StreamStatusResponse>(`/api/streaming/status/${streamKey}`),
+
+    getWhipConfig: (streamKey: string): Promise<{ whipUrl: string; iceServers: RTCIceServer[] }> =>
+      this.fetch<{ whipUrl: string; iceServers: RTCIceServer[] }>(
+        `/api/streaming/whip-config/${streamKey}`,
+      ),
   };
 }
 

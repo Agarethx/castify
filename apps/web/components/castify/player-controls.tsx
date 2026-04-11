@@ -196,10 +196,10 @@ export function PlayerControls({
             </Select>
           )}
 
-          {/* P2P badge — placeholder for Prompt 05 */}
+          {/* P2P badge */}
           {state.p2pEnabled && (
             <span className="text-xs font-semibold text-green-400 border border-green-500/40 rounded px-1.5 py-0.5">
-              P2P
+              {state.p2pOffloadPct > 0 ? `P2P ${state.p2pOffloadPct}%` : 'P2P'}
             </span>
           )}
 

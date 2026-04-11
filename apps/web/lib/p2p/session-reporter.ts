@@ -31,10 +31,8 @@ export class SessionReporter {
   }
 
   start(getPlayerState: () => PlayerState): void {
-    console.log('[SessionReporter] start() called, contentId:', this.contentId)
     if (this.intervalId) return
     this.intervalId = setInterval(async () => {
-      console.log('[SessionReporter] interval tick')
       const state = getPlayerState()
       const snapshot = this.buildSnapshot(state)
       await this.send(snapshot)
@@ -70,7 +68,6 @@ export class SessionReporter {
   }
 
   private async send(snapshot: SessionSnapshot): Promise<void> {
-    console.log('[SessionReporter] sending to:', this.apiUrl)
     try {
       await fetch(`${this.apiUrl}/api/streaming/session/snapshot`, {
         method: 'POST',

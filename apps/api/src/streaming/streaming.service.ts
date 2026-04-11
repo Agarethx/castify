@@ -152,6 +152,22 @@ export class StreamingService {
     return { channelId, updatedAt: Date.now(), ...DEFAULT_NETWORK_CONFIG };
   }
 
+  // ── WHIP config ───────────────────────────────────────────────────────────
+
+  async getWhipConfig(streamKey: string): Promise<{
+    whipUrl: string;
+    iceServers: { urls: string[] }[];
+  }> {
+    const content = await this.prisma.content.findUnique({ where: { streamKey } });
+    if (!content) throw new NotFoundException('streamKey inválido');
+
+    const mediamtxUrl = this.config.get('MEDIAMTX_URL', { infer: true });
+    return {
+      whipUrl: `${mediamtxUrl}/${streamKey}/whip`,
+      iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }],
+    };
+  }
+
   // ── SRS stats ─────────────────────────────────────────────────────────────
 
   async getSrsStats(): Promise<{ srsReachable: boolean; activeStreams: number; streams: SrsStream[] }> {

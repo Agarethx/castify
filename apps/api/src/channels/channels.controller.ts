@@ -33,6 +33,12 @@ export class ChannelsController {
     return this.channelsService.getMyChannel(tenant.id);
   }
 
+  @UseGuards(TenantGuard)
+  @Get('channels/me/content')
+  getMyContents(@CurrentTenant() tenant: Channel): Promise<Content[]> {
+    return this.channelsService.getMyContents(tenant.id);
+  }
+
   @UseGuards(TenantGuard, RolesGuard)
   @Roles('CHANNEL_ADMIN', 'SUPER_ADMIN')
   @Post('channels/me/content')

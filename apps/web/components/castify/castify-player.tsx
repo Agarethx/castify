@@ -137,6 +137,9 @@ export function CastifyPlayer({
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { onStateChange?.(state); }, [state, onStateChange]);
 
+  // Byte counters for P2P stats — useRef to avoid stale closures in hls event handlers
+  const p2pBytesRef = useRef({ fromPeers: 0, fromCdn: 0 });
+
   // ── Event emitter ──────────────────────────────────────────────────────────
 
   const emitEvent = useCallback(
@@ -213,7 +216,6 @@ export function CastifyPlayer({
     if (contentId && channelId) {
       const reporter = new SessionReporter(contentId, channelId, apiUrl);
       reporterRef.current = reporter;
-      console.log('[P2P] reporter created synchronously');
     }
 
     // Priorizar hls.js — necesitamos sus eventos para Session Reporter y Scheduler P2P.
@@ -256,7 +258,6 @@ export function CastifyPlayer({
     let cancelled = false;
 
     async function initP2PAndHls() {
-      console.log('[P2P] init started');
       let loaderCtor: Hls['config']['loader'] | undefined;
 
       // 1. P2P — intento independiente; si falla, el reporter ya existe
@@ -268,15 +269,28 @@ export function CastifyPlayer({
           const tracker = new P2PTracker();
           trackerRef.current = tracker;
 
+          const announceUrl = process.env['NEXT_PUBLIC_TRACKER_URL'] ?? 'ws://localhost:1337/announce';
+          const peerId = crypto.randomUUID();
+
           await tracker.connect({
-            announceUrl: process.env['NEXT_PUBLIC_TRACKER_URL'] ?? 'ws://localhost:1337/announce',
-            infoHash:    deriveInfoHash(src, stateRef.current.quality?.height ?? 720),
-            peerId:      crypto.randomUUID(),
+            announceUrl,
+            infoHash: deriveInfoHash(src, stateRef.current.quality?.height ?? 720),
+            peerId,
           });
 
           const scheduler = new CastifyScheduler(tracker, networkConfig);
+          scheduler.setStreamContext({ src, announceUrl, peerId });
           schedulerRef.current = scheduler;
           loaderCtor = scheduler.createLoader();
+
+          dispatch({
+            type: 'SET_P2P_STATS',
+            p2pEnabled: true,
+            peersConnected: 0,
+            bytesFromPeers: 0,
+            bytesFromCdn: 0,
+            p2pOffloadPct: 0,
+          });
         } catch (err) {
           // Tracker no disponible — CDN fallback, el reporter sigue corriendo
           console.debug('[CastifyPlayer] P2P init failed (CDN fallback):', err);
@@ -291,7 +305,6 @@ export function CastifyPlayer({
 
       // ── Manifest ────────────────────────────────────────────────────────────
       hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
-        console.log('[HLS] MANIFEST_PARSED, reporterRef:', reporterRef.current);
         const qualities: QualityLevel[] = data.levels.map((l, i) => ({
           index: i,
           height: l.height,
@@ -329,14 +342,36 @@ export function CastifyPlayer({
       // ── Segments ─────────────────────────────────────────────────────────────
       hls.on(Hls.Events.FRAG_BUFFERED, (_e, data) => {
         const level = hls.levels[data.frag.level];
-        const source = (window as Window & { __castifyLastSegmentSource?: string }).__castifyLastSegmentSource ?? 'cdn';
-        (window as Window & { __castifyLastSegmentSource?: string }).__castifyLastSegmentSource = undefined;
+        const w = window as Window & { __castifyLastSegmentSource?: string };
+        const source = w.__castifyLastSegmentSource ?? 'cdn';
+        w.__castifyLastSegmentSource = undefined;
+
+        // Update P2P byte counters
+        const sizeBytes = data.stats.loaded;
+        if (source === 'peer') {
+          p2pBytesRef.current.fromPeers += sizeBytes;
+        } else {
+          p2pBytesRef.current.fromCdn += sizeBytes;
+        }
+
+        if (schedulerRef.current) {
+          const { fromPeers, fromCdn } = p2pBytesRef.current;
+          const total = fromPeers + fromCdn;
+          dispatch({
+            type: 'SET_P2P_STATS',
+            p2pEnabled: true,
+            peersConnected: trackerRef.current?.getAvailablePeers().length ?? 0,
+            bytesFromPeers: fromPeers,
+            bytesFromCdn: fromCdn,
+            p2pOffloadPct: total > 0 ? Math.round((fromPeers / total) * 100) : 0,
+          });
+        }
 
         emitEvent('segment_loaded', {
           url:       data.frag.url,
           source,
           latencyMs: data.stats.loading.end - data.stats.loading.start,
-          sizeBytes: data.stats.loaded,
+          sizeBytes,
           quality:   level ? buildQualityName(level.height) : 'unknown',
         });
       });
@@ -396,8 +431,8 @@ export function CastifyPlayer({
 
     // ── Cleanup — CRITICAL: reporter → tracker → hls, in that order ──────────
     return () => {
-      console.log('[P2P] cleanup called');
       cancelled = true;
+      p2pBytesRef.current = { fromPeers: 0, fromCdn: 0 };
 
       reporterRef.current?.stop();
       reporterRef.current = null;

@@ -63,6 +63,9 @@ export const ApiEnvSchema = z.object({
   BUNNY_API_KEY: z.string().min(1).default('placeholder'),
   BUNNY_STORAGE_ZONE: z.string().min(1).default('placeholder'),
   PEER5_KEY: z.string().min(1).default('placeholder'),
+  MEDIAMTX_URL: z.string().url().default('http://localhost:8889'),
+  VOD_UPLOAD_DIR: z.string().default('/tmp/castify-uploads'),
+  HLS_VOD_DIR: z.string().default('/var/hls/vod'),
   PORT: z.coerce.number().int().positive().default(3001),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 });

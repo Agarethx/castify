@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import multipart from '@fastify/multipart';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
@@ -7,6 +8,12 @@ async function bootstrap(): Promise<void> {
     AppModule,
     new FastifyAdapter({ logger: true }),
   );
+
+  // Register multipart plugin for VOD file uploads (2 GB limit for dev)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await app.register(multipart as any, {
+    limits: { fileSize: 2 * 1024 * 1024 * 1024, files: 1 },
+  });
 
   app.setGlobalPrefix('api', { exclude: ['health'] });
 

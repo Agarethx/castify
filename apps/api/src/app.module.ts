@@ -9,6 +9,7 @@ import { AuthModule } from './auth/auth.module';
 import { TenantModule } from './tenant/tenant.module';
 import { ChannelsModule } from './channels/channels.module';
 import { StreamingModule } from './streaming/streaming.module';
+import { VodModule } from './vod/vod.module';
 import { HealthController } from './health/health.controller';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
@@ -32,6 +33,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     TenantModule,
     ChannelsModule,
     StreamingModule,
+    VodModule,
   ],
   controllers: [HealthController],
   providers: [

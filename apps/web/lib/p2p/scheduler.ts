@@ -5,6 +5,7 @@ import Hls from 'hls.js';
 import type { HlsConfig, Loader, LoaderCallbacks, LoaderConfiguration, LoaderContext, LoaderStats } from 'hls.js';
 import type { NetworkConfig, PlayerState } from '@castify/types';
 import type { P2PTracker, PeerCandidate } from './tracker';
+import { deriveInfoHash } from './tracker';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -15,16 +16,31 @@ interface SegmentDecision {
   peer?: PeerCandidate;
 }
 
+interface StreamContext {
+  src: string;
+  announceUrl: string;
+  peerId: string;
+}
+
 // ─── CastifyScheduler ─────────────────────────────────────────────────────────
 
 export class CastifyScheduler {
   private networkConfig: NetworkConfig;
   private tracker: P2PTracker;
   private playerState: PlayerState | null = null;
+  private streamContext: StreamContext | null = null;
+
+  private qualityTransitioning = false;
+  private qualityTransitionTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor(tracker: P2PTracker, config: NetworkConfig) {
     this.tracker = tracker;
     this.networkConfig = config;
+  }
+
+  /** Llamado una vez después del constructor para habilitar reconexión al cambiar calidad */
+  setStreamContext(ctx: StreamContext): void {
+    this.streamContext = ctx;
   }
 
   /**
@@ -115,6 +131,9 @@ export class CastifyScheduler {
   // ── Decision algorithm ────────────────────────────────────────────────────
 
   private decide(segmentUrl: string): SegmentDecision {
+    // REGLA 0: calidad en transición → CDN puro durante 5s
+    if (this.qualityTransitioning) return { source: 'cdn' };
+
     // REGLA 1: buffer bajo → siempre CDN — nunca arriesgar la experiencia
     const buffer = this.playerState?.buffered ?? 0;
     if (buffer < this.networkConfig.minBufferToUsePeerSec) {
@@ -155,11 +174,29 @@ export class CastifyScheduler {
 
   // ── Hooks called by CastifyPlayer ─────────────────────────────────────────
 
-  /** Llamado cuando hls.js cambia de calidad — invalida el swarm */
-  onQualityChange(_newQualityHeight: number): void {
-    // Los peers tienen segmentos de la calidad anterior — se invalidan
+  /** Llamado cuando hls.js cambia de calidad — invalida el swarm y reconecta */
+  onQualityChange(newQualityHeight: number): void {
+    this.qualityTransitioning = true;
+    if (this.qualityTransitionTimeout) clearTimeout(this.qualityTransitionTimeout);
+
+    // Invalidar swarm actual — los peers tienen segmentos de la calidad anterior
     this.tracker.announce([]);
-    // El tracker reconectará con el nuevo infoHash en la próxima sesión
+
+    this.qualityTransitionTimeout = setTimeout(() => {
+      this.qualityTransitioning = false;
+      this.qualityTransitionTimeout = null;
+
+      // Reconectar con infoHash derivado de la nueva calidad
+      if (this.streamContext) {
+        const newHash = deriveInfoHash(this.streamContext.src, newQualityHeight);
+        this.tracker.destroy();
+        void this.tracker.connect({
+          announceUrl: this.streamContext.announceUrl,
+          infoHash: newHash,
+          peerId: this.streamContext.peerId,
+        });
+      }
+    }, 5000);
   }
 
   /** Llamado por onStateChange del player */
