@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/api/', '/_next/', '/favicon.ico'];
+const PUBLIC_PATHS = ['/login', '/api/', '/_next/', '/favicon.ico', '/embed/'];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
@@ -34,6 +34,7 @@ export function middleware(request: NextRequest): NextResponse {
   const tenant = extractTenant(request);
 
   const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-pathname', pathname);
   if (tenant) {
     requestHeaders.set('x-tenant-slug', tenant);
   }

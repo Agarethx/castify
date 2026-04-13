@@ -1,23 +1,29 @@
+'use client';
+
 import Link from 'next/link';
-import { Home, Radio, Film, BarChart2, Settings, LogOut } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { Home, Radio, Film, BarChart2, Settings, LogOut, Video, Lock, CalendarDays } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import type { UserWithChannel } from '@castify/types';
 
 const NAV_ITEMS = [
-  { href: '/stream', label: 'Stream', icon: Radio },
   { href: '/', label: 'Inicio', icon: Home },
+  { href: '/stream', label: 'Stream', icon: Radio },
   { href: '/content', label: 'Contenido', icon: Film },
+  { href: '/sessions', label: 'Sesiones privadas', icon: Lock },
+  { href: '/epg', label: 'EPG', icon: CalendarDays },
   { href: '/analytics', label: 'Analytics', icon: BarChart2 },
+  { href: '/castify-video', label: 'Castify Video', icon: Video },
   { href: '/settings', label: 'Configuración', icon: Settings },
 ] as const;
 
 interface AppSidebarProps {
   user: UserWithChannel;
-  currentPath?: string;
 }
 
-export function AppSidebar({ user, currentPath = '' }: AppSidebarProps): React.JSX.Element {
+export function AppSidebar({ user }: AppSidebarProps): React.JSX.Element {
+  const pathname = usePathname();
   const channel = user.channel;
 
   return (
@@ -43,7 +49,7 @@ export function AppSidebar({ user, currentPath = '' }: AppSidebarProps): React.J
       {/* Nav */}
       <nav className="flex-1 px-3 py-3 space-y-0.5">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const isActive = currentPath === href || (href !== '/' && currentPath.startsWith(href));
+          const isActive = pathname === href || (href !== '/' && pathname.startsWith(href));
           return (
             <Link
               key={href}

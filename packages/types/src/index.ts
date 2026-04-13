@@ -3,7 +3,7 @@
 export type Plan = 'STARTER' | 'PRO' | 'ENTERPRISE';
 export type Role = 'SUPER_ADMIN' | 'CHANNEL_ADMIN' | 'VIEWER';
 export type ContentType = 'LIVE' | 'VOD';
-export type ContentStatus = 'INACTIVE' | 'ACTIVE' | 'PROCESSING' | 'ERROR';
+export type ContentStatus = 'INACTIVE' | 'ACTIVE' | 'PROCESSING' | 'ERROR' | 'VOD2LIVE';
 
 // ─── Core entities ────────────────────────────────────────────────────────────
 

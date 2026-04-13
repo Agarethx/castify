@@ -10,6 +10,8 @@ import { SessionReporter } from '@/lib/p2p/session-reporter';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
+export type LogoPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+
 export interface CastifyPlayerProps {
   src: string;
   isLive?: boolean;
@@ -26,6 +28,16 @@ export interface CastifyPlayerProps {
   onEvent?: (event: PlayerEvent) => void;
   /** Hook para el SessionReporter */
   onStateChange?: (state: PlayerState) => void;
+  /** URL del logo a mostrar sobre el player */
+  logo?: string;
+  /** Posición del logo (default: top-left) */
+  logoPosition?: LogoPosition;
+  /** Color primario en hex (#rrggbb) — se inyecta como --castify-primary */
+  primaryColor?: string;
+  /** Color de acento en hex — se inyecta como --castify-accent */
+  accentColor?: string;
+  /** Ocultar controles por completo */
+  hideControls?: boolean;
 }
 
 // ─── State machine ────────────────────────────────────────────────────────────
@@ -110,6 +122,13 @@ async function fetchNetworkConfig(apiUrl: string, channelId: string): Promise<Ne
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+const LOGO_POSITION_CLASSES: Record<LogoPosition, string> = {
+  'top-left':     'top-3 left-3',
+  'top-right':    'top-3 right-3',
+  'bottom-left':  'bottom-14 left-3',
+  'bottom-right': 'bottom-14 right-3',
+};
+
 export function CastifyPlayer({
   src,
   isLive = false,
@@ -121,6 +140,11 @@ export function CastifyPlayer({
   p2pEnabled: p2pEnabledProp = true,
   onEvent,
   onStateChange,
+  logo,
+  logoPosition = 'top-left',
+  primaryColor,
+  accentColor,
+  hideControls = false,
 }: CastifyPlayerProps): React.JSX.Element {
   const videoRef     = useRef<HTMLVideoElement>(null);
   const hlsRef       = useRef<Hls | null>(null);
@@ -486,10 +510,16 @@ export function CastifyPlayer({
 
   const { status } = state;
 
+  const colorVars = {
+    ...(primaryColor ? { '--castify-primary': primaryColor } : {}),
+    ...(accentColor  ? { '--castify-accent':  accentColor  } : {}),
+  } as React.CSSProperties;
+
   return (
     <div
       ref={containerRef}
       className={cn('relative w-full aspect-video bg-black rounded-xl overflow-hidden group', className)}
+      style={colorVars}
     >
       <video
         ref={videoRef}
@@ -497,6 +527,14 @@ export function CastifyPlayer({
         playsInline
         className="w-full h-full object-contain"
       />
+
+      {/* Logo overlay */}
+      {logo && (
+        <div className={cn('absolute pointer-events-none', LOGO_POSITION_CLASSES[logoPosition])}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={logo} alt="Logo" className="h-8 w-auto max-w-[120px] object-contain opacity-90" />
+        </div>
+      )}
 
       {/* EN VIVO badge */}
       {isLive && status === 'playing' && (
@@ -551,16 +589,18 @@ export function CastifyPlayer({
       )}
 
       {/* Controls */}
-      <PlayerControls
-        state={state}
-        containerRef={containerRef}
-        onPlay={handlePlay}
-        onPause={handlePause}
-        onSeek={handleSeek}
-        onVolumeChange={handleVolumeChange}
-        onMuteToggle={handleMuteToggle}
-        onQualityChange={handleQualityChange}
-      />
+      {!hideControls && (
+        <PlayerControls
+          state={state}
+          containerRef={containerRef}
+          onPlay={handlePlay}
+          onPause={handlePause}
+          onSeek={handleSeek}
+          onVolumeChange={handleVolumeChange}
+          onMuteToggle={handleMuteToggle}
+          onQualityChange={handleQualityChange}
+        />
+      )}
     </div>
   );
 }

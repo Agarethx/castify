@@ -1,4 +1,4 @@
-import { cookies, headers } from 'next/headers';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { serverFetch } from '@/lib/api';
 import type { UserWithChannel } from '@castify/types';
@@ -21,12 +21,9 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
-  const headersList = headers();
-  const pathname = headersList.get('x-pathname') ?? '/stream';
-
   return (
     <div className="flex min-h-screen bg-background">
-      <AppSidebar user={user} currentPath={pathname} />
+      <AppSidebar user={user} />
       <main className="flex-1 overflow-auto">{children}</main>
     </div>
   );

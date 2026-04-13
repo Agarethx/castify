@@ -1,5 +1,7 @@
 import {
+  Body,
   Controller,
+  HttpCode,
   Post,
   Get,
   Param,
@@ -15,6 +17,8 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentTenant } from '../tenant/decorators/current-tenant.decorator';
 import { Channel } from '@castify/types';
 import { VodService } from './vod.service';
+import { Vod2LiveService } from './vod2live.service';
+import { LiveClipsService } from './live-clips.service';
 
 const ALLOWED_MIMETYPES = new Set([
   'video/mp4',
@@ -30,7 +34,11 @@ type MultipartRequest = FastifyRequest & {
 
 @Controller('channels/me/vod')
 export class VodController {
-  constructor(private readonly vodService: VodService) {}
+  constructor(
+    private readonly vodService: VodService,
+    private readonly vod2liveService: Vod2LiveService,
+    private readonly liveClipsService: LiveClipsService,
+  ) {}
 
   // POST /api/channels/me/vod/upload
   @UseGuards(TenantGuard, RolesGuard)
@@ -63,5 +71,61 @@ export class VodController {
     @Param('contentId') contentId: string,
   ) {
     return this.vodService.getVodStatus(tenant.id, contentId);
+  }
+
+  // POST /api/channels/me/vod/:contentId/vod2live/start
+  @UseGuards(TenantGuard, RolesGuard)
+  @Roles('CHANNEL_ADMIN', 'SUPER_ADMIN')
+  @Post(':contentId/vod2live/start')
+  startVOD2Live(
+    @CurrentTenant() tenant: Channel,
+    @Param('contentId') contentId: string,
+    @Body() body: { startSeconds?: number; endSeconds?: number; goLiveAt?: string },
+  ) {
+    return this.vod2liveService.startVOD2Live({
+      contentId,
+      channelId: tenant.id,
+      startSeconds: body.startSeconds,
+      endSeconds: body.endSeconds,
+      goLiveAt: body.goLiveAt ? new Date(body.goLiveAt) : undefined,
+    });
+  }
+
+  // POST /api/channels/me/vod/:contentId/vod2live/stop
+  @UseGuards(TenantGuard, RolesGuard)
+  @Roles('CHANNEL_ADMIN', 'SUPER_ADMIN')
+  @Post(':contentId/vod2live/stop')
+  @HttpCode(204)
+  async stopVOD2Live(
+    @CurrentTenant() tenant: Channel,
+    @Param('contentId') contentId: string,
+  ): Promise<void> {
+    await this.vod2liveService.stopVOD2Live(contentId, tenant.id);
+  }
+
+  // POST /api/channels/me/vod/:contentId/clips
+  @UseGuards(TenantGuard, RolesGuard)
+  @Roles('CHANNEL_ADMIN', 'SUPER_ADMIN')
+  @Post(':contentId/clips')
+  createClip(
+    @CurrentTenant() tenant: Channel,
+    @Param('contentId') contentId: string,
+    @Body() body: { duration?: number },
+  ) {
+    return this.liveClipsService.createClip(
+      contentId,
+      tenant.id,
+      body.duration ?? 30,
+    );
+  }
+
+  // GET /api/channels/me/vod/:contentId/clips
+  @UseGuards(TenantGuard)
+  @Get(':contentId/clips')
+  listClips(
+    @CurrentTenant() tenant: Channel,
+    @Param('contentId') contentId: string,
+  ) {
+    return this.liveClipsService.listClips(contentId, tenant.id);
   }
 }

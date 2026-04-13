@@ -12,6 +12,7 @@ const STATUS_CONFIG: Record<ContentStatus, { label: string; dotClass: string; va
   INACTIVE: { label: 'Inactivo', dotClass: 'bg-zinc-500', variant: 'secondary' },
   PROCESSING: { label: 'Procesando', dotClass: 'bg-yellow-400 animate-pulse', variant: 'warning' },
   ERROR: { label: 'Error', dotClass: 'bg-red-400', variant: 'destructive' },
+  VOD2LIVE: { label: 'VOD en vivo', dotClass: 'bg-blue-400 animate-pulse', variant: 'success' },
 };
 
 export function StreamStatusBadge({ status, className }: StreamStatusBadgeProps): React.JSX.Element {

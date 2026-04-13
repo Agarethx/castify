@@ -1,3 +1,92 @@
+// ── Dashboard summary type (mirrors DashboardService response) ────────────────
+
+export interface DashboardStats {
+  totalContents: number
+  liveStreams: number
+  vodContents: number
+  activePrivateSessions: number
+  bandwidthGbUsed: number
+  cdnGbUsed: number
+  p2pGbUsed: number
+  bandwidthCapGb: number
+  bandwidthCapPct: number
+  currentViewers: number
+  p2pOffloadPct: number
+  avgP2pOffloadPct: number
+  estimatedSavingsUsd: number
+  multistreamActive: number
+}
+
+export interface VideoSession {
+  id: string
+  channelId: string
+  title: string
+  mode: '1to1' | 'group'
+  deliveryMode: string
+  streamKey: string
+  password: string | null
+  ratePerGb: number
+  webhookUrl: string | null
+  status: 'created' | 'active' | 'ended'
+  bandwidthGb: number
+  totalCost: number | null
+  startedAt: string | null
+  endedAt: string | null
+  createdAt: string
+}
+
+export interface CastifyVideoCurrentUsage {
+  month: number
+  year: number
+  cdn1to1Gb: number
+  hybridGb: number
+  totalGb: number
+  capGb: number
+  capPct: number
+  nearCap: boolean
+  cdn1to1Cost: number
+  hybridCost: number
+  baseFee: number
+  estimatedTotal: number
+  concurrentActive: number
+  maxConcurrent: number
+  sessionCount: number
+}
+
+export interface CastifyVideoBillingRecord {
+  id: string
+  month: number
+  year: number
+  cdn1to1Gb: number
+  hybridGb: number
+  cdn1to1Cost: number
+  hybridCost: number
+  baseFee: number
+  totalCost: number
+  sessionCount: number
+  paid: boolean
+  paidAt: string | null
+}
+
+export interface CastifyVideoDashboard {
+  activeSessions: number
+  monthlyGbUsed: number
+  bandwidthCapGb: number
+  capPct: number
+  nearCap: boolean
+  estimatedCostUsd: number
+  baseFee: number
+  totalEstimate: number
+}
+
+export interface DashboardSummary {
+  plan: 'STARTER' | 'PRO' | 'ENTERPRISE'
+  stats: DashboardStats
+  castifyVideo: CastifyVideoDashboard | null
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 import type {
   Channel,
   ChannelWithContents,
@@ -184,6 +273,57 @@ export class ApiClient {
 
     getMyContents: (): Promise<Content[]> =>
       this.fetch<Content[]>('/api/channels/me/content'),
+  };
+
+  // ── Dashboard ─────────────────────────────────────────────────────────────
+
+  dashboard = {
+    getSummary: () => this.fetch<DashboardSummary>('/api/channels/me/dashboard'),
+  };
+
+  // ── Castify Video ─────────────────────────────────────────────────────────
+
+  castifyVideo = {
+    getCurrentUsage: () =>
+      this.fetch<CastifyVideoCurrentUsage>('/api/castify-video/billing/current'),
+
+    getBillingHistory: () =>
+      this.fetch<CastifyVideoBillingRecord[]>('/api/castify-video/billing/history'),
+
+    listSessions: (status?: 'active' | 'ended' | 'created') =>
+      this.fetch<VideoSession[]>(
+        `/api/castify-video/sessions${status ? `?status=${status}` : ''}`,
+      ),
+
+    createSession: (body: {
+      title: string
+      mode: '1to1' | 'group'
+      password?: string
+      webhookUrl?: string
+    }) =>
+      this.fetch<{
+        id: string
+        streamKey: string
+        password?: string
+        deliveryMode: string
+        expectedRate: number
+        status: string
+      }>('/api/castify-video/sessions', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    startSession: (sessionId: string) =>
+      this.fetch<void>(`/api/castify-video/sessions/${sessionId}/start`, { method: 'POST' }),
+
+    endSession: (sessionId: string) =>
+      this.fetch<void>(`/api/castify-video/sessions/${sessionId}/end`, { method: 'POST' }),
+
+    getSessionAnalytics: (sessionId: string) =>
+      this.fetch<unknown>(`/api/castify-video/sessions/${sessionId}/analytics`),
+
+    generateMonthlyBill: (year: number, month: number) =>
+      this.fetch<unknown>(`/api/castify-video/billing/${year}/${month}/generate`, { method: 'POST' }),
   };
 
   // ── Streaming ──────────────────────────────────────────────────────────────
