@@ -7,6 +7,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common'
 import { Channel } from '@castify/types'
@@ -20,6 +21,18 @@ import { CreateEPGEntryDto, EpgService } from './epg.service'
 @Controller('channels/me/epg')
 export class EpgController {
   constructor(private readonly epgService: EpgService) {}
+
+  // GET /api/channels/me/epg?date=YYYY-MM-DD
+  @UseGuards(TenantGuard, RolesGuard)
+  @Roles('CHANNEL_ADMIN', 'SUPER_ADMIN')
+  @Get()
+  listByDate(
+    @CurrentTenant() tenant: Channel,
+    @Query('date') date?: string,
+  ) {
+    const d = date ?? new Date().toISOString().split('T')[0]!
+    return this.epgService.listByDate(tenant.id, d)
+  }
 
   // GET /api/channels/me/epg/24h — public; viewers can see the schedule
   @Public()

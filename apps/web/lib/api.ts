@@ -17,6 +17,30 @@ export interface DashboardStats {
   multistreamActive: number
 }
 
+export interface EPGEntry {
+  id: string
+  channelId: string
+  title: string
+  description: string | null
+  contentId: string | null
+  startTime: string
+  endTime: string
+  duration: number  // minutes
+  metadata: Record<string, unknown> | null
+  createdAt: string
+  updatedAt: string
+  content?: { title: string; hlsUrl: string | null } | null
+}
+
+export interface CreateEPGEntryDto {
+  title: string
+  description?: string
+  contentId?: string
+  startTime: string
+  endTime: string
+  metadata?: Record<string, unknown>
+}
+
 export interface VideoSession {
   id: string
   channelId: string
@@ -324,6 +348,31 @@ export class ApiClient {
 
     generateMonthlyBill: (year: number, month: number) =>
       this.fetch<unknown>(`/api/castify-video/billing/${year}/${month}/generate`, { method: 'POST' }),
+  };
+
+  // ── EPG ───────────────────────────────────────────────────────────────────
+
+  epg = {
+    listByDate: (date: string) =>
+      this.fetch<EPGEntry[]>(`/api/channels/me/epg?date=${date}`),
+
+    getNext24h: () =>
+      this.fetch<EPGEntry[]>('/api/channels/me/epg/24h'),
+
+    create: (body: CreateEPGEntryDto) =>
+      this.fetch<EPGEntry>('/api/channels/me/epg', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    update: (epgId: string, body: Partial<CreateEPGEntryDto>) =>
+      this.fetch<EPGEntry>(`/api/channels/me/epg/${epgId}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+
+    delete: (epgId: string) =>
+      this.fetch<void>(`/api/channels/me/epg/${epgId}`, { method: 'DELETE' }),
   };
 
   // ── Streaming ──────────────────────────────────────────────────────────────

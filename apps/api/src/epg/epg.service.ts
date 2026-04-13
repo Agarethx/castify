@@ -55,6 +55,22 @@ export class EpgService {
     })
   }
 
+  async listByDate(channelId: string, date: string) {
+    const d = new Date(date)
+    const dayStart = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0))
+    const dayEnd   = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 23, 59, 59))
+
+    return this.prisma.ePGEntry.findMany({
+      where: {
+        channelId,
+        startTime: { lte: dayEnd },
+        endTime:   { gte: dayStart },
+      },
+      orderBy: { startTime: 'asc' },
+      include: { content: { select: { title: true, hlsUrl: true } } },
+    })
+  }
+
   async getNext24h(channelId: string) {
     const now      = new Date()
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000)

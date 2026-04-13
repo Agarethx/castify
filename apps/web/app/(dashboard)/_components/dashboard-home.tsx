@@ -76,7 +76,7 @@ export function DashboardHome({ channelName }: { channelName: string }) {
   if (loading) return <DashboardSkeleton />
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl">
+    <div className="p-6 space-y-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -496,7 +496,7 @@ function MiniStat({
 
 function DashboardSkeleton() {
   return (
-    <div className="p-6 space-y-6 max-w-6xl">
+    <div className="p-6 space-y-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between">
         <div className="space-y-2">
           <Skeleton className="h-7 w-56" />

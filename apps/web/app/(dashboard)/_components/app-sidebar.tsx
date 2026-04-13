@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Radio, Film, BarChart2, Settings, LogOut, Video, Lock, CalendarDays } from 'lucide-react';
+import { Home, Radio, Film, BarChart2, Settings, LogOut, Video, CalendarDays } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import type { UserWithChannel } from '@castify/types';
@@ -11,7 +11,6 @@ const NAV_ITEMS = [
   { href: '/', label: 'Inicio', icon: Home },
   { href: '/stream', label: 'Stream', icon: Radio },
   { href: '/content', label: 'Contenido', icon: Film },
-  { href: '/sessions', label: 'Sesiones privadas', icon: Lock },
   { href: '/epg', label: 'EPG', icon: CalendarDays },
   { href: '/analytics', label: 'Analytics', icon: BarChart2 },
   { href: '/castify-video', label: 'Castify Video', icon: Video },
