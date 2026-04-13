@@ -54,6 +54,7 @@ services:
     volumes:
       - hls_data:/usr/share/nginx/html:ro
       - /tmp/castify-vod:/castify-vod:ro                 # VOD: API escribe en /tmp/castify-vod, nginx sirve desde /castify-vod
+      - /tmp/castify-clips:/castify-clips:ro             # Clips: API escribe, nginx sirve desde /castify-clips
       - ./nginx/hls.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - srs
@@ -91,12 +92,14 @@ services:
       SRS_INTERNAL_URL: http://srs:1985
       VOD_UPLOAD_DIR: /tmp/castify-uploads
       HLS_VOD_DIR: /tmp/castify-vod
+      HLS_CLIPS_DIR: /tmp/castify-clips
     ports:
       - "3001:3001"
     volumes:
       - ./apps/api:/app
       - /app/node_modules
-      - /tmp/castify-vod:/tmp/castify-vod   # comparte con nginx en Docker
+      - /tmp/castify-vod:/tmp/castify-vod       # comparte con nginx en Docker
+      - /tmp/castify-clips:/tmp/castify-clips   # clips: comparte con nginx
     depends_on:
       postgres:
         condition: service_healthy

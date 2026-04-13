@@ -39,7 +39,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
-import { ClipCreateModal } from '@/app/(dashboard)/clips/_components/clip-create-modal'
+import { ClipCreationModal } from '@/components/clips/clip-creation-modal'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -250,7 +250,7 @@ export function ContentManager({ initialContents }: ContentManagerProps) {
       )}
 
       {/* Clip create modal */}
-      <ClipCreateModal
+      <ClipCreationModal
         open={clipContent !== null}
         onClose={() => setClipContent(null)}
         onCreated={() => setClipContent(null)}

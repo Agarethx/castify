@@ -34,7 +34,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ClipCreateModal } from './clip-create-modal'
+import { ClipCreationModal } from '@/components/clips/clip-creation-modal'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -223,7 +223,7 @@ export function ClipsGallery({ contents }: ClipsGalleryProps) {
       )}
 
       {/* ── Create modal ─────────────────────────────────────────────────── */}
-      <ClipCreateModal
+      <ClipCreationModal
         open={modalOpen}
         onClose={() => { setModalOpen(false); setPreselectedContent(null) }}
         onCreated={(clip) => {
