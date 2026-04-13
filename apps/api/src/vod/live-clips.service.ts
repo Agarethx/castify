@@ -72,10 +72,13 @@ export class LiveClipsService {
     const clip = await this.prisma.clip.create({
       data: {
         id: clipId,
+        channelId,
         contentId,
         title,
+        startSec: 0,
+        endSec: clipDurationSec,
         durationSec: clipDurationSec,
-        url: clipUrl,
+        hlsUrl: clipUrl,
         outputPath,
         status: 'processing',
       },
@@ -97,7 +100,7 @@ export class LiveClipsService {
 
     return this.prisma.clip.findMany({
       where: { contentId },
-      select: { id: true, title: true, durationSec: true, status: true, url: true, createdAt: true },
+      select: { id: true, title: true, durationSec: true, status: true, hlsUrl: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     })
   }

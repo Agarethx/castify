@@ -15,7 +15,8 @@ import { PrivateSessionsModule } from './private-sessions/private-sessions.modul
 import { EpgModule } from './epg/epg.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { CastifyVideoModule } from './castify-video/castify-video.module';
-import { DashboardModule } from './dashboard/dashboard.module';
+import { DashboardModule } from './dashboard/dashboard.module'
+import { ClipsModule } from './clips/clips.module';
 import { HealthController } from './health/health.controller';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
@@ -62,6 +63,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     AnalyticsModule,
     CastifyVideoModule,
     DashboardModule,
+    ClipsModule,
   ],
   controllers: [HealthController],
   providers: [

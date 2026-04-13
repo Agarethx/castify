@@ -29,6 +29,7 @@ import {
   MoreVertical,
   Play,
   Pencil,
+  Scissors,
   Trash2,
   Share2,
   Copy,
@@ -38,6 +39,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
+import { ClipCreateModal } from '@/app/(dashboard)/clips/_components/clip-create-modal'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -103,6 +105,7 @@ export function ContentManager({ initialContents }: ContentManagerProps) {
   const [filterStatus, setFilterStatus] = useState<ContentStatus | 'ALL'>('ALL')
   const [filterType, setFilterType] = useState<ContentType | 'ALL'>('ALL')
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [clipContent, setClipContent] = useState<Content | null>(null)
 
   // ── Filter + search ─────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -232,6 +235,7 @@ export function ContentManager({ initialContents }: ContentManagerProps) {
               content={content}
               deleting={deleting === content.id}
               onDelete={() => void handleDelete(content.id)}
+              onCreateClip={() => setClipContent(content)}
             />
           ))}
         </div>
@@ -244,6 +248,15 @@ export function ContentManager({ initialContents }: ContentManagerProps) {
           {(search || filterStatus !== 'ALL' || filterType !== 'ALL') && ' (filtrado)'}
         </p>
       )}
+
+      {/* Clip create modal */}
+      <ClipCreateModal
+        open={clipContent !== null}
+        onClose={() => setClipContent(null)}
+        onCreated={() => setClipContent(null)}
+        contents={contents}
+        preselectedContent={clipContent}
+      />
     </div>
   )
 }
@@ -254,10 +267,12 @@ function ContentCard({
   content,
   deleting,
   onDelete,
+  onCreateClip,
 }: {
   content: Content
   deleting: boolean
   onDelete: () => void
+  onCreateClip: () => void
 }) {
   const cfg = STATUS_CONFIG[content.status]
   const isLive = content.type === 'LIVE'
@@ -368,6 +383,10 @@ function ContentCard({
                   <Pencil className="h-4 w-4" />
                   Configurar stream
                 </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onCreateClip}>
+                <Scissors className="h-4 w-4" />
+                Crear clip
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem

@@ -181,17 +181,17 @@ export function AnalyticsDashboard({ contents }: { contents: Content[] }) {
       {/* ── Toolbar ──────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-3">
         <Select value={contentId} onValueChange={setContentId}>
-          <SelectTrigger className="w-56">
+          <SelectTrigger className="w-56 overflow-hidden">
             <SelectValue placeholder="Seleccioná contenido" />
           </SelectTrigger>
           <SelectContent>
             {contents.map((c) => (
               <SelectItem key={c.id} value={c.id}>
-                <span className="flex items-center gap-2">
-                  <Badge variant={c.type === 'LIVE' ? 'destructive' : 'secondary'} className="text-[10px] px-1 py-0">
+                <span className="flex items-center gap-2 min-w-0">
+                  <Badge variant={c.type === 'LIVE' ? 'destructive' : 'secondary'} className="text-[10px] px-1 py-0 shrink-0">
                     {c.type}
                   </Badge>
-                  {c.title}
+                  <span className="truncate">{c.title}</span>
                 </span>
               </SelectItem>
             ))}

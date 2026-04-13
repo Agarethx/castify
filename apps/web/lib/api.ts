@@ -17,6 +17,33 @@ export interface DashboardStats {
   multistreamActive: number
 }
 
+export interface Clip {
+  id: string
+  channelId: string
+  contentId: string
+  title: string
+  startSec: number
+  endSec: number
+  durationSec: number
+  hlsUrl: string | null
+  thumbnailUrl: string | null
+  status: 'processing' | 'ready' | 'failed'
+  platforms: string[]
+  views: number
+  createdAt: string
+  updatedAt: string
+  content?: { title: string; type: string; hlsUrl: string | null } | null
+}
+
+export interface CreateClipDto {
+  contentId: string
+  title: string
+  startSec: number
+  endSec: number
+  thumbnailUrl?: string
+  platforms?: string[]
+}
+
 export interface EPGEntry {
   id: string
   channelId: string
@@ -348,6 +375,31 @@ export class ApiClient {
 
     generateMonthlyBill: (year: number, month: number) =>
       this.fetch<unknown>(`/api/castify-video/billing/${year}/${month}/generate`, { method: 'POST' }),
+  };
+
+  // ── Clips ─────────────────────────────────────────────────────────────────
+
+  clips = {
+    list: (contentId?: string) =>
+      this.fetch<Clip[]>(`/api/channels/me/clips${contentId ? `?contentId=${contentId}` : ''}`),
+
+    getOne: (clipId: string) =>
+      this.fetch<Clip>(`/api/channels/me/clips/${clipId}`),
+
+    create: (body: CreateClipDto) =>
+      this.fetch<Clip>('/api/channels/me/clips', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    publish: (clipId: string, platforms: string[]) =>
+      this.fetch<{ published: string[]; clipId: string }>(
+        `/api/channels/me/clips/${clipId}/publish`,
+        { method: 'POST', body: JSON.stringify({ platforms }) },
+      ),
+
+    delete: (clipId: string) =>
+      this.fetch<void>(`/api/channels/me/clips/${clipId}`, { method: 'DELETE' }),
   };
 
   // ── EPG ───────────────────────────────────────────────────────────────────
