@@ -1,11 +1,13 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Home, Radio, Film, BarChart2, Settings, LogOut, Video, CalendarDays, Scissors } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import type { UserWithChannel } from '@castify/types';
+import { api } from '@/lib/api';
 
 const NAV_ITEMS = [
   { href: '/', label: 'Inicio', icon: Home },
@@ -24,7 +26,15 @@ interface AppSidebarProps {
 
 export function AppSidebar({ user }: AppSidebarProps): React.JSX.Element {
   const pathname = usePathname();
-  const channel = user.channel;
+  const router   = useRouter();
+  const channel  = user.channel;
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    await api.auth.logout().catch(() => null);
+    router.push('/login');
+  }
 
   return (
     <aside className="w-64 flex flex-col border-r border-border bg-card">
@@ -74,15 +84,15 @@ export function AppSidebar({ user }: AppSidebarProps): React.JSX.Element {
         <div className="px-3 py-1 mb-1">
           <p className="text-xs text-muted-foreground truncate">{user.email}</p>
         </div>
-        <form action="/api/auth/logout-action" method="POST">
-          <button
-            type="submit"
-            className="flex w-full items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
-          >
-            <LogOut className="h-4 w-4 shrink-0" />
-            Cerrar sesión
-          </button>
-        </form>
+        <button
+          type="button"
+          onClick={() => void handleLogout()}
+          disabled={loggingOut}
+          className="flex w-full items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors disabled:opacity-50"
+        >
+          <LogOut className="h-4 w-4 shrink-0" />
+          {loggingOut ? 'Saliendo…' : 'Cerrar sesión'}
+        </button>
       </div>
     </aside>
   );
