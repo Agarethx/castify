@@ -65,23 +65,48 @@ if [ "$FIRST_RUN" = true ]; then
   log ".env.prod generado con secretos aleatorios."
 
   # Configurar nginx en el host
-  log "Configurando nginx..."
-  sed "s|CASTIFY_DOMAIN|$DOMAIN|g" "$NGINX_TEMPLATE" > "$NGINX_AVAILABLE"
+  log "Configurando nginx (HTTP temporal para obtener certificado)..."
+
+  # Primero desplegamos una config HTTP-only para que certbot pueda correr
+  cat > "$NGINX_AVAILABLE" <<EOF
+server {
+    listen 80;
+    server_name $DOMAIN www.$DOMAIN;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    location / {
+        return 200 'ok';
+        add_header Content-Type text/plain;
+    }
+}
+EOF
+
   if [ ! -L "$NGINX_ENABLED" ]; then
     ln -s "$NGINX_AVAILABLE" "$NGINX_ENABLED"
   fi
 
-  # Quitar bloque SSL del nginx temporalmente para que certbot funcione
-  # certbot --nginx lo maneja solo, pero necesitamos que nginx arranque primero
-  log "Validando configuración nginx..."
+  # Desactivar default site para evitar conflictos de puerto 80
+  rm -f /etc/nginx/sites-enabled/default
+
+  log "Validando configuración nginx temporal..."
   nginx -t || err "Configuración nginx inválida. Revisa $NGINX_AVAILABLE."
+  systemctl reload nginx
 
   # Obtener certificado SSL
   log "Obteniendo certificado SSL para $DOMAIN..."
-  certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos \
+  certbot certonly --nginx -d "$DOMAIN" --non-interactive --agree-tos \
     --register-unsafely-without-email \
     || err "Certbot falló. Asegúrate de que el dominio apunte a esta IP y el puerto 80 esté abierto."
 
+  # Ahora aplicamos la config SSL completa
+  log "Aplicando configuración nginx con SSL..."
+  sed "s|CASTIFY_DOMAIN|$DOMAIN|g" "$NGINX_TEMPLATE" > "$NGINX_AVAILABLE"
+
+  log "Validando configuración nginx SSL..."
+  nginx -t || err "Configuración nginx SSL inválida. Revisa $NGINX_AVAILABLE."
   systemctl reload nginx
   log "SSL configurado correctamente."
 

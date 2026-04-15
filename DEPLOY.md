@@ -28,7 +28,7 @@ newgrp docker   # aplicar grupo sin cerrar sesión
 ### 3. Clonar el repositorio
 
 ```bash
-git clone https://github.com/TU_USUARIO/p2p-streaming.git /opt/castify
+git clone git@github.com:Agarethx/castify.git /opt/castify
 cd /opt/castify
 ```
 
