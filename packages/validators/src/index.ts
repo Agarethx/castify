@@ -57,6 +57,18 @@ export const RegisterWithChannelSchema = z.object({
 });
 export type RegisterWithChannelDto = z.infer<typeof RegisterWithChannelSchema>;
 
+// Update own channel (no tenant slug required — uses JWT)
+export const UpdateMyChannelSchema = z.object({
+  name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(60).optional(),
+  slug: z
+    .string()
+    .min(2, 'El slug debe tener al menos 2 caracteres')
+    .max(50, 'El slug no puede superar 50 caracteres')
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Solo minúsculas, números y guiones')
+    .optional(),
+});
+export type UpdateMyChannelDto = z.infer<typeof UpdateMyChannelSchema>;
+
 // Forgot / reset password
 export const ForgotPasswordSchema = z.object({
   email: z.string().email('Email inválido'),

@@ -259,6 +259,12 @@ export class ApiClient {
 
     me: (): Promise<UserWithChannel> => this.fetch<UserWithChannel>('/api/auth/me'),
 
+    updateMyChannel: (dto: { name?: string; slug?: string }): Promise<UserWithChannel> =>
+      this.fetch<UserWithChannel>('/api/auth/me/channel', {
+        method: 'PATCH',
+        body: JSON.stringify(dto),
+      }),
+
     register: async (dto: { email: string; password: string; channelName: string }): Promise<LoginResponse> => {
       const data = await this.fetch<LoginResponse>('/api/auth/register', {
         method: 'POST',

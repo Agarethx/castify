@@ -58,6 +58,7 @@ export function DashboardHome({ channelName, channelSlug }: { channelName: strin
   const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
+    if (!channelSlug) { setLoading(false); return }
     void load()
   }, [])
 
@@ -77,6 +78,22 @@ export function DashboardHome({ channelName, channelSlug }: { channelName: strin
   }
 
   if (loading) return <DashboardSkeleton />
+
+  if (!channelSlug) {
+    return (
+      <div className="p-6 max-w-2xl mx-auto">
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Canal sin configurar</AlertTitle>
+          <AlertDescription>
+            Tu canal no tiene un slug asignado. Andá a{' '}
+            <a href="/settings" className="underline font-medium">Configuración → Perfil</a>{' '}
+            y completá el campo Slug (URL) para poder usar el dashboard.
+          </AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
