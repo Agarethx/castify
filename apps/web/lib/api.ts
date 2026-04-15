@@ -154,6 +154,11 @@ import Cookies from 'js-cookie';
 const API_URL =
   process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001';
 
+// Server-side only: uses the internal Docker network URL to avoid
+// routing through the public internet when doing SSR fetches.
+const INTERNAL_API_URL =
+  process.env['API_INTERNAL_URL'] ?? API_URL;
+
 export class ApiClientError extends Error {
   constructor(
     public readonly statusCode: number,
@@ -475,7 +480,7 @@ export async function serverFetch<T>(
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (tenantSlug) headers['X-Tenant-Slug'] = tenantSlug;
 
-  const res = await fetch(`${API_URL}${path}`, { headers, cache: 'no-store' });
+  const res = await fetch(`${INTERNAL_API_URL}${path}`, { headers, cache: 'no-store' });
   if (!res.ok) {
     const error = (await res.json().catch(() => ({ message: res.statusText }))) as Partial<ApiError>;
     throw new ApiClientError(res.status, error.message ?? res.statusText);
