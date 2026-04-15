@@ -49,16 +49,17 @@ const PLAN_BADGE_VARIANT: Record<string, 'default' | 'secondary' | 'outline' | '
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function DashboardHome({ channelName, channelSlug }: { channelName: string; channelSlug: string }) {
+  // Set tenant synchronously before first render so all API calls have the header
+  if (channelSlug) api.setTenant(channelSlug)
+
   const [data, setData] = useState<DashboardSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
-    // Ensure tenant is set from server-provided slug before any API call
-    if (channelSlug) api.setTenant(channelSlug)
     void load()
-  }, [channelSlug])
+  }, [])
 
   async function load(isRefresh = false) {
     if (isRefresh) setRefreshing(true)
