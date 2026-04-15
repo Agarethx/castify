@@ -49,6 +49,26 @@ export const RegisterSchema = LoginSchema.extend({
 
 export type RegisterDto = z.infer<typeof RegisterSchema>;
 
+// Registration with channel creation
+export const RegisterWithChannelSchema = z.object({
+  email:       z.string().email('Email inválido'),
+  password:    z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
+  channelName: z.string().min(2, 'El nombre del canal debe tener al menos 2 caracteres').max(60),
+});
+export type RegisterWithChannelDto = z.infer<typeof RegisterWithChannelSchema>;
+
+// Forgot / reset password
+export const ForgotPasswordSchema = z.object({
+  email: z.string().email('Email inválido'),
+});
+export type ForgotPasswordDto = z.infer<typeof ForgotPasswordSchema>;
+
+export const ResetPasswordSchema = z.object({
+  token:    z.string().min(1, 'Token requerido'),
+  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
+});
+export type ResetPasswordDto = z.infer<typeof ResetPasswordSchema>;
+
 // ─── API Env ──────────────────────────────────────────────────────────────────
 
 export const ApiEnvSchema = z.object({

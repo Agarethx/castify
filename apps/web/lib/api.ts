@@ -253,6 +253,28 @@ export class ApiClient {
     },
 
     me: (): Promise<UserWithChannel> => this.fetch<UserWithChannel>('/api/auth/me'),
+
+    register: async (dto: { email: string; password: string; channelName: string }): Promise<LoginResponse> => {
+      const data = await this.fetch<LoginResponse>('/api/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(dto),
+      });
+      Cookies.set('castify_access_token', data.accessToken, { expires: 1 / 96 });
+      Cookies.set('castify_refresh_token', data.refreshToken, { expires: 7 });
+      return data;
+    },
+
+    forgotPassword: (email: string): Promise<{ message: string; devToken?: string }> =>
+      this.fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      }),
+
+    resetPassword: (token: string, password: string): Promise<{ message: string }> =>
+      this.fetch('/api/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ token, password }),
+      }),
   };
 
   // ── Channels ───────────────────────────────────────────────────────────────

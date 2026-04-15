@@ -1,6 +1,12 @@
-import { Body, Controller, Get, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Req } from '@nestjs/common';
 import { FastifyRequest } from 'fastify';
-import { LoginSchema, RefreshTokenSchema } from '@castify/validators';
+import {
+  ForgotPasswordSchema,
+  LoginSchema,
+  RefreshTokenSchema,
+  RegisterWithChannelSchema,
+  ResetPasswordSchema,
+} from '@castify/validators';
 import { LoginResponse, UserWithChannel } from '@castify/types';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from '../tenant/decorators/current-user.decorator';
@@ -16,6 +22,29 @@ export class AuthController {
   login(@Body() body: unknown): Promise<LoginResponse> {
     const dto = LoginSchema.parse(body);
     return this.authService.login(dto);
+  }
+
+  @Public()
+  @Post('register')
+  register(@Body() body: unknown): Promise<LoginResponse> {
+    const dto = RegisterWithChannelSchema.parse(body);
+    return this.authService.register(dto);
+  }
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(200)
+  forgotPassword(@Body() body: unknown) {
+    const dto = ForgotPasswordSchema.parse(body);
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(200)
+  resetPassword(@Body() body: unknown) {
+    const dto = ResetPasswordSchema.parse(body);
+    return this.authService.resetPassword(dto);
   }
 
   @Public()

@@ -1,9 +1,21 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
-import { ApiEnv, LoginDto, RefreshTokenDto } from '@castify/validators';
+import {
+  ApiEnv,
+  LoginDto,
+  RefreshTokenDto,
+  RegisterWithChannelDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+} from '@castify/validators';
 import { LoginResponse, UserWithChannel } from '@castify/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -95,6 +107,111 @@ export class AuthService {
       updatedAt: user.updatedAt,
       channel: user.channel,
     };
+  }
+
+  // ── Register ──────────────────────────────────────────────────────────────
+
+  async register(dto: RegisterWithChannelDto): Promise<LoginResponse> {
+    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (existing) throw new BadRequestException('Ya existe una cuenta con ese email');
+
+    const slug = dto.channelName
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 50);
+
+    // Ensure slug uniqueness
+    const slugBase = slug || 'channel';
+    let finalSlug = slugBase;
+    let attempt = 0;
+    while (await this.prisma.channel.findUnique({ where: { slug: finalSlug } })) {
+      attempt++;
+      finalSlug = `${slugBase}-${attempt}`;
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, 12);
+
+    const channel = await this.prisma.channel.create({
+      data: { name: dto.channelName, slug: finalSlug },
+    });
+
+    const user = await this.prisma.user.create({
+      data: {
+        email: dto.email,
+        passwordHash,
+        role: 'CHANNEL_ADMIN',
+        channelId: channel.id,
+      },
+    });
+
+    // Auto-login after registration
+    return this.login({ email: dto.email, password: dto.password });
+  }
+
+  // ── Forgot password ───────────────────────────────────────────────────────
+
+  async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string; devToken?: string }> {
+    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+
+    // Always return success to avoid email enumeration
+    if (!user) {
+      return { message: 'Si existe una cuenta con ese email, recibirás un enlace de recuperación.' };
+    }
+
+    // Invalidate previous tokens for this user
+    await this.prisma.passwordResetToken.updateMany({
+      where: { userId: user.id, used: false },
+      data:  { used: true },
+    });
+
+    const token = randomUUID();
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await this.prisma.passwordResetToken.create({
+      data: { token, userId: user.id, expiresAt },
+    });
+
+    // TODO in production: send email with reset link
+    // await this.mailerService.sendPasswordReset(user.email, token)
+
+    const isDev = this.config.get('NODE_ENV', { infer: false }) !== 'production';
+
+    return {
+      message: 'Si existe una cuenta con ese email, recibirás un enlace de recuperación.',
+      ...(isDev ? { devToken: token } : {}),
+    };
+  }
+
+  // ── Reset password ────────────────────────────────────────────────────────
+
+  async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
+    const record = await this.prisma.passwordResetToken.findUnique({
+      where: { token: dto.token },
+    });
+
+    if (!record || record.used || record.expiresAt < new Date()) {
+      throw new BadRequestException('El enlace es inválido o ya expiró');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, 12);
+
+    await Promise.all([
+      this.prisma.user.update({
+        where: { id: record.userId },
+        data:  { passwordHash },
+      }),
+      this.prisma.passwordResetToken.update({
+        where: { id: record.id },
+        data:  { used: true },
+      }),
+      // Invalidate all refresh tokens so existing sessions are kicked out
+      this.prisma.refreshToken.deleteMany({ where: { userId: record.userId } }),
+    ]);
+
+    return { message: 'Contraseña actualizada. Ya podés iniciar sesión.' };
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────

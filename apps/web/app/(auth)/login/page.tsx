@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LoginSchema } from '@castify/validators';
 import { useAuthStore } from '@/store/auth.store';
@@ -88,6 +89,15 @@ export default function LoginPage(): React.JSX.Element {
             </p>
           )}
 
+          <div className="flex items-center justify-end">
+            <Link
+              href="/forgot-password"
+              className="text-xs text-white/40 hover:text-white/70 transition-colors"
+            >
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </div>
+
           <button
             type="submit"
             disabled={isLoading}
@@ -97,7 +107,14 @@ export default function LoginPage(): React.JSX.Element {
           </button>
         </form>
 
-        <p className="text-center text-xs text-white/30">
+        <p className="text-center text-sm text-white/40">
+          ¿No tenés cuenta?{' '}
+          <Link href="/register" className="text-indigo-400 hover:text-indigo-300 transition-colors font-medium">
+            Registrate
+          </Link>
+        </p>
+
+        <p className="text-center text-xs text-white/20">
           Demo: admin@demo.castify.tv / demo2024
         </p>
       </div>
