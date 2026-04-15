@@ -133,20 +133,21 @@ log "Actualizando código..."
 cd "$REPO_ROOT"
 git pull origin main
 
+DC="docker compose -f docker-compose.prod.yml --env-file $ENV_FILE"
+
 log "Construyendo imágenes Docker (secuencial para conservar RAM)..."
-docker compose -f docker-compose.prod.yml build --no-cache tracker
-docker compose -f docker-compose.prod.yml build --no-cache api
-docker compose -f docker-compose.prod.yml build --no-cache web
+$DC build --no-cache tracker
+$DC build --no-cache api
+$DC build --no-cache web
 
 log "Levantando servicios..."
-docker compose -f docker-compose.prod.yml up -d
+$DC up -d
 
 log "Esperando que la base de datos esté lista..."
 sleep 5
 
 log "Ejecutando migraciones Prisma..."
-docker compose -f docker-compose.prod.yml exec -T api \
-  npx prisma migrate deploy
+$DC exec -T api npx prisma migrate deploy
 
 log ""
 log "========================================"
