@@ -7,113 +7,306 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum ChannelPlan {
-  starter
-  pro
-  enterprise
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Plan {
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum Role {
+  SUPER_ADMIN
+  CHANNEL_ADMIN
+  VIEWER
 }
 
 enum ContentType {
-  live
-  vod
+  LIVE
+  VOD
 }
 
 enum ContentStatus {
-  draft
-  published
-  archived
+  INACTIVE
+  ACTIVE
+  PROCESSING
+  ERROR
+  VOD2LIVE
 }
 
-enum UserRole {
-  admin
-  channel_admin
-  viewer
-}
-
-enum AdBreakPosition {
-  preroll
-  midroll
-  postroll
-}
+// ─── Models ───────────────────────────────────────────────────────────────────
 
 model Channel {
-  id           String      @id @default(uuid())
+  id           String   @id @default(uuid())
   name         String
-  slug         String      @unique
+  slug         String   @unique
   logoUrl      String?
-  primaryColor String      @default("#000000")
-  plan         ChannelPlan @default(starter)
-  isActive     Boolean     @default(true)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  primaryColor String   @default("#000000")
+  plan         Plan     @default(STARTER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  users   User[]
-  content Content[]
+  users                User[]
+  contents             Content[]
+  clips                Clip[]
+  privateSessions      PrivateSession[]
+  epgEntries           EPGEntry[]
+  castifyVideoSessions CastifyVideoSession[]
+  castifyVideoBilling  CastifyVideoBilling[]
 
   @@map("channels")
-}
-
-model Content {
-  id           String        @id @default(uuid())
-  channelId    String
-  title        String
-  slug         String
-  type         ContentType
-  status       ContentStatus @default(draft)
-  thumbnailUrl String?
-  duration     Int?
-  publishedAt  DateTime?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-
-  channel        Channel        @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  streamSessions StreamSession[]
-  adBreaks       AdBreak[]
-
-  @@unique([channelId, slug])
-  @@map("contents")
 }
 
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
   passwordHash String
-  role         UserRole @default(viewer)
+  role         Role     @default(CHANNEL_ADMIN)
   channelId    String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  channel        Channel?        @relation(fields: [channelId], references: [id], onDelete: SetNull)
-  streamSessions StreamSession[]
+  channel Channel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
 
   @@map("users")
 }
 
-model StreamSession {
-  id            String    @id @default(uuid())
-  contentId     String
-  viewerId      String?
-  startedAt     DateTime  @default(now())
-  endedAt       DateTime?
-  p2pOffloadPct Float     @default(0)
-  bytesFromPeers BigInt   @default(0)
-  bytesFromCdn   BigInt   @default(0)
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 
-  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
-  viewer  User?   @relation(fields: [viewerId], references: [id], onDelete: SetNull)
-
-  @@map("stream_sessions")
+  @@map("refresh_tokens")
 }
 
-model AdBreak {
-  id          String          @id @default(uuid())
-  contentId   String
-  position    AdBreakPosition
-  vastUrl     String
-  durationSecs Int
-  createdAt   DateTime        @default(now())
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  token     String   @unique @default(uuid())
+  userId    String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model Content {
+  id          String        @id @default(uuid())
+  channelId   String
+  title       String
+  type        ContentType   @default(LIVE)
+  status      ContentStatus @default(INACTIVE)
+  streamKey   String        @unique @default(uuid())
+  hlsUrl      String?
+  localPath   String?
+  durationSec Int?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  channel    Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  sessions   StreamSession[]
+  epgEntries EPGEntry[]
+  clips      Clip[]
+
+  @@map("contents")
+}
+
+model Clip {
+  id           String   @id @default(uuid())
+  channelId    String
+  channel      Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  contentId    String
+  content      Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  title        String
+  startSec     Float
+  endSec       Float
+  durationSec  Float
+
+  hlsUrl       String?
+  thumbnailUrl String?
+  outputPath   String?
+
+  status       String   @default("processing")  // processing | ready | failed
+
+  platforms    Json?    // string[] e.g. ["youtube","tiktok","twitter"]
+  views        Int      @default(0)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([channelId])
+  @@index([contentId])
+  @@map("clips")
+}
+
+model PrivateSession {
+  id          String    @id @default(uuid())
+  channelId   String
+  channel     Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+
+  streamKey   String    @unique
+  password    String
+
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  endedAt     DateTime?
+
+  duration    Int
+  maxIdleTime Int       @default(10)
+
+  status      String    @default("scheduled")
+
+  metadata    Json
+
+  viewerCount        Int @default(0)
+  peakViewers        Int @default(0)
+  totalMinutesViewed Int @default(0)
+
+  webhookUrl    String?
+  webhookSecret String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events SessionEvent[]
+
+  @@index([channelId])
+  @@index([status])
+  @@map("private_sessions")
+}
+
+model SessionEvent {
+  id        String         @id @default(uuid())
+  sessionId String
+  session   PrivateSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  type      String
+  userId    String?
+  userEmail String?
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([type])
+  @@map("session_events")
+}
+
+model EPGEntry {
+  id          String   @id @default(uuid())
+  channelId   String
+  channel     Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+
+  contentId   String?
+  content     Content? @relation(fields: [contentId], references: [id], onDelete: SetNull)
+
+  startTime   DateTime
+  endTime     DateTime
+
+  duration    Int
+
+  metadata    Json?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([channelId])
+  @@index([startTime])
+  @@map("epg_entries")
+}
+
+model CastifyVideoSession {
+  id           String    @id @default(cuid())
+  channelId    String
+  channel      Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  title        String
+  mode         String    @default("1to1")   // "1to1" | "group"
+  deliveryMode String    @default("cdn")    // "cdn"  | "hybrid"
+
+  streamKey    String    @unique @default(uuid())
+  password     String?
+
+  // Billing fields (populated on endSession)
+  bandwidthGb  Float     @default(0)
+  ratePerGb    Float     @default(0.04635)
+  baseFee      Float     @default(0)
+  totalCost    Float     @default(0)
+
+  startedAt    DateTime?
+  endedAt      DateTime?
+  status       String    @default("created")   // "created" | "active" | "ended"
+
+  webhookUrl    String?
+  webhookSecret String?
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  billingId    String?
+  billing      CastifyVideoBilling? @relation(fields: [billingId], references: [id], onDelete: SetNull)
+
+  @@index([channelId])
+  @@index([status])
+  @@map("castify_video_sessions")
+}
+
+model CastifyVideoBilling {
+  id           String    @id @default(cuid())
+  channelId    String
+  channel      Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  month        Int       // e.g. 4 for April
+  year         Int       // e.g. 2026
+
+  // Aggregated costs
+  cdn1to1Cost  Float     @default(0)   // 1-to-1 CDN sessions
+  hybridCost   Float     @default(0)   // group hybrid sessions
+  baseFee      Float     @default(50)  // monthly base
+  totalCost    Float     @default(0)
+
+  // Bandwidth breakdown
+  cdn1to1Gb    Float     @default(0)
+  hybridGb     Float     @default(0)
+
+  sessionCount Int       @default(0)
+  paid         Boolean   @default(false)
+  paidAt       DateTime?
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sessions     CastifyVideoSession[]
+
+  @@unique([channelId, month, year])
+  @@map("castify_video_billing")
+}
+
+model StreamSession {
+  id             String    @id @default(uuid())
+  contentId      String
+  startedAt      DateTime  @default(now())
+  endedAt        DateTime?
+  bytesFromPeers BigInt    @default(0)
+  bytesFromCdn   BigInt    @default(0)
+  p2pOffloadPct  Float     @default(0)
+  avgLatencyMs   Int       @default(0)
+  peersConnected Int       @default(0)
+  qualityChanges Int       @default(0)
 
   content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
 
-  @@map("ad_breaks")
+  @@map("stream_sessions")
 }

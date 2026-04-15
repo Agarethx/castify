@@ -11,6 +11,8 @@ out
 .env
 .env.local
 .env.*.local
+apps/api/.env
+apps/web/.env.local
 
 # Turbo
 .turbo

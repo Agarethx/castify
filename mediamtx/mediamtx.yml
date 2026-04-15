@@ -1,0 +1,29 @@
+###############################################################################
+# mediamtx — Castify WebRTC ingest
+# Browser → WHIP (8889) → mediamtx → RTMP (1936) → ffmpeg → SRS (1935) → HLS
+###############################################################################
+
+logLevel: info
+logDestinations: [stdout]
+
+# API interna (health / stats)
+api: yes
+apiAddress: :9997
+
+# ── WebRTC / WHIP ────────────────────────────────────────────────────────────
+webrtc: yes
+webrtcAddress: :8889
+webrtcAllowOrigins: ['*']
+
+# ── RTMP salida hacia SRS ─────────────────────────────────────────────────────
+rtmp: yes
+rtmpAddress: :1936
+
+# ── Paths ─────────────────────────────────────────────────────────────────────
+# Cuando llega un stream WebRTC, ffmpeg lo lee desde el RTMP local
+# y lo reenvía a SRS para que genere HLS.
+pathDefaults:
+  runOnReady: >-
+    ffmpeg -i rtmp://127.0.0.1:1936/$MTX_PATH
+    -c copy -f flv rtmp://srs:1935/live/$MTX_PATH
+  runOnReadyRestart: yes
