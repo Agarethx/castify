@@ -110,7 +110,8 @@ const NAV_ITEMS: { id: SectionId; label: string; icon: React.ReactNode; danger?:
 // ── SettingsPage ──────────────────────────────────────────────────────────────
 
 export function SettingsPage({ user }: { user: UserWithChannel }) {
-  const [active, setActive] = useState<SectionId>('plan')
+  const slugMissing = !user.channel?.slug
+  const [active, setActive] = useState<SectionId>(slugMissing ? 'profile' : 'plan')
 
   const channel = user.channel
   const plan = channel?.plan ?? 'STARTER'
@@ -123,6 +124,15 @@ export function SettingsPage({ user }: { user: UserWithChannel }) {
           Gestioná tu cuenta, integraciones y preferencias
         </p>
       </div>
+
+      {slugMissing && (
+        <Alert variant="destructive" className="mb-6">
+          <TriangleAlert className="h-4 w-4" />
+          <AlertDescription>
+            Tu canal no tiene un slug configurado. Completá el campo <strong>Slug (URL)</strong> en Perfil para poder usar el dashboard.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="flex gap-6 items-start">
         {/* ── Sidebar nav ────────────────────────────────────────────────── */}
@@ -321,22 +331,60 @@ function LimitCard({ label, value, ok }: { label: string; value: string; ok?: bo
 function ProfileSection({ user }: { user: UserWithChannel }) {
   const channel = user.channel
   const [name, setName] = useState(channel?.name ?? '')
-  const [bio, setBio] = useState('')
+  const [slug, setSlug] = useState(channel?.slug ?? '')
+  const [slugError, setSlugError] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+
+  const slugMissing = !channel?.slug
+
+  function validateSlug(value: string): string {
+    if (!value) return 'El slug es requerido'
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) return 'Solo minúsculas, números y guiones'
+    if (value.length < 2) return 'Mínimo 2 caracteres'
+    if (value.length > 50) return 'Máximo 50 caracteres'
+    return ''
+  }
 
   async function handleSave() {
+    const slugErr = validateSlug(slug)
+    if (slugErr) { setSlugError(slugErr); return }
+    setSlugError('')
+    setError('')
     setSaving(true)
-    // Simulate save delay (no update endpoint exists yet)
-    await new Promise((r) => setTimeout(r, 800))
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
+    try {
+      const updated = await api.auth.updateMyChannel({
+        name: name || undefined,
+        slug: slug || undefined,
+      })
+      if (updated.channel?.slug) {
+        api.setTenant(updated.channel.slug)
+        // Update the cookie so all subsequent requests use the new slug
+        const Cookies = (await import('js-cookie')).default
+        Cookies.set('castify_tenant', updated.channel.slug, { expires: 30, sameSite: 'lax', path: '/' })
+      }
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al guardar')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
     <Section title="Perfil" description="Información pública de tu canal">
       <div className="space-y-4">
+        {slugMissing && (
+          <Alert variant="destructive">
+            <TriangleAlert className="h-4 w-4" />
+            <AlertDescription>
+              Tu canal no tiene un slug asignado. Configuralo aquí para que el dashboard funcione correctamente.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Avatar */}
         <div className="flex items-center gap-4">
           <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center text-2xl font-bold text-muted-foreground border overflow-hidden">
@@ -364,33 +412,30 @@ function ProfileSection({ user }: { user: UserWithChannel }) {
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </FormField>
           <FormField label="Slug (URL)">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground bg-muted rounded-l-md border border-r-0 px-3 py-2 h-9">
-                castify.tv/
-              </span>
-              <Input
-                value={channel?.slug ?? ''}
-                readOnly
-                className="rounded-l-none text-muted-foreground"
-              />
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground bg-muted rounded-l-md border border-r-0 px-3 py-2 h-9">
+                  castify.tv/
+                </span>
+                <Input
+                  value={slug}
+                  onChange={(e) => {
+                    setSlug(e.target.value.toLowerCase())
+                    setSlugError('')
+                  }}
+                  placeholder="mi-canal"
+                  className="rounded-l-none"
+                />
+              </div>
+              {slugError && <p className="text-xs text-destructive">{slugError}</p>}
             </div>
           </FormField>
           <FormField label="Email">
             <Input value={user.email} readOnly className="text-muted-foreground" />
-            <p className="text-xs text-muted-foreground mt-1">
-              El email se gestiona desde tu proveedor de autenticación.
-            </p>
-          </FormField>
-          <FormField label="Descripción / Bio">
-            <textarea
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              rows={3}
-              placeholder="Contá un poco sobre tu canal…"
-              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-            />
           </FormField>
         </div>
+
+        {error && <p className="text-sm text-destructive">{error}</p>}
 
         <div className="flex items-center gap-3">
           <Button onClick={() => void handleSave()} disabled={saving} className="gap-2">

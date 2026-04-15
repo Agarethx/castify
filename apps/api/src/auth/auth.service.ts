@@ -15,6 +15,7 @@ import {
   RegisterWithChannelDto,
   ForgotPasswordDto,
   ResetPasswordDto,
+  UpdateMyChannelDto,
 } from '@castify/validators';
 import { LoginResponse, UserWithChannel } from '@castify/types';
 import { PrismaService } from '../prisma/prisma.service';
@@ -149,6 +150,40 @@ export class AuthService {
 
     // Auto-login after registration
     return this.login({ email: dto.email, password: dto.password });
+  }
+
+  async updateMyChannel(userId: string, dto: UpdateMyChannelDto): Promise<UserWithChannel> {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      include: { channel: true },
+    });
+
+    if (!user.channelId || !user.channel) {
+      throw new BadRequestException('El usuario no tiene un canal asociado');
+    }
+
+    if (dto.slug && dto.slug !== user.channel.slug) {
+      const existing = await this.prisma.channel.findUnique({ where: { slug: dto.slug } });
+      if (existing) throw new BadRequestException('Ese slug ya está en uso');
+    }
+
+    const updated = await this.prisma.channel.update({
+      where: { id: user.channelId },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
+        ...(dto.slug !== undefined ? { slug: dto.slug } : {}),
+      },
+    });
+
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      channelId: user.channelId,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      channel: updated,
+    };
   }
 
   // ── Forgot password ───────────────────────────────────────────────────────

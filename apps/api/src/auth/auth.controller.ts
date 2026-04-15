@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Patch, Post, Req } from '@nestjs/common';
 import { FastifyRequest } from 'fastify';
 import {
   ForgotPasswordSchema,
@@ -6,6 +6,7 @@ import {
   RefreshTokenSchema,
   RegisterWithChannelSchema,
   ResetPasswordSchema,
+  UpdateMyChannelSchema,
 } from '@castify/validators';
 import { LoginResponse, UserWithChannel } from '@castify/types';
 import { Public } from './decorators/public.decorator';
@@ -70,5 +71,14 @@ export class AuthController {
   @Get('me')
   me(@CurrentUser() user: JwtPayload): Promise<UserWithChannel> {
     return this.authService.me(user.sub);
+  }
+
+  @Patch('me/channel')
+  updateMyChannel(
+    @CurrentUser() user: JwtPayload,
+    @Body() body: unknown,
+  ): Promise<UserWithChannel> {
+    const dto = UpdateMyChannelSchema.parse(body);
+    return this.authService.updateMyChannel(user.sub, dto);
   }
 }
