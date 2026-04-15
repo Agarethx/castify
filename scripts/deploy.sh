@@ -47,6 +47,17 @@ if [ "$FIRST_RUN" = true ]; then
   need nginx
   need certbot
 
+  # Crear swap de 2 GB si no existe (VPS con poca RAM)
+  if [ ! -f /swapfile ]; then
+    log "Creando swap de 2 GB..."
+    fallocate -l 2G /swapfile
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    log "Swap activado."
+  fi
+
   # Crear .env.prod desde el template
   log "Creando .env.prod..."
   cp "$REPO_ROOT/.env.prod.example" "$ENV_FILE"
@@ -122,8 +133,10 @@ log "Actualizando código..."
 cd "$REPO_ROOT"
 git pull origin main
 
-log "Construyendo imágenes Docker..."
-docker compose -f docker-compose.prod.yml build --no-cache
+log "Construyendo imágenes Docker (secuencial para conservar RAM)..."
+docker compose -f docker-compose.prod.yml build --no-cache tracker
+docker compose -f docker-compose.prod.yml build --no-cache api
+docker compose -f docker-compose.prod.yml build --no-cache web
 
 log "Levantando servicios..."
 docker compose -f docker-compose.prod.yml up -d
