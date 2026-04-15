@@ -19,6 +19,14 @@ RUN pnpm --filter @castify/types build || true
 RUN pnpm --filter @castify/validators build
 RUN pnpm --filter @castify/config build || true
 
+# Variables públicas que Next.js hornea en el bundle en tiempo de build
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_TRACKER_URL
+ARG NEXT_PUBLIC_MEDIAMTX_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_TRACKER_URL=$NEXT_PUBLIC_TRACKER_URL
+ENV NEXT_PUBLIC_MEDIAMTX_URL=$NEXT_PUBLIC_MEDIAMTX_URL
+
 WORKDIR /app/apps/web
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
