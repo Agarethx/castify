@@ -24,15 +24,14 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 
 FROM base AS runner
-WORKDIR /app/apps/web
+WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY --from=builder /app/apps/web/.next/standalone ./
-COPY --from=builder /app/apps/web/.next/static ./.next/static
-# public/ es opcional — créalo vacío si no existe en la fuente
-RUN mkdir -p .next/static public
+COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
+RUN mkdir -p apps/web/.next/static apps/web/public
 
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["node", "apps/web/server.js"]
