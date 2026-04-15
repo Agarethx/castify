@@ -63,8 +63,8 @@ services:
 
   tracker:
     build:
-      context: .
-      dockerfile: tracker/Dockerfile
+      context: ./tracker
+      dockerfile: Dockerfile
     container_name: castify-tracker
     restart: always
     ports:
