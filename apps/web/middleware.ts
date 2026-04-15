@@ -28,6 +28,8 @@ function extractTenant(request: NextRequest): string | null {
   if (fromQuery) return fromQuery;
 
   const fromCookie = request.cookies.get('castify_tenant')?.value ?? null;
+  // Ignore stale cookie values that match reserved subdomains
+  if (fromCookie && RESERVED_SUBDOMAINS.has(fromCookie)) return null;
   return fromCookie;
 }
 

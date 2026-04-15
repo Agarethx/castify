@@ -18,6 +18,7 @@ export default async function HomePage(): Promise<React.JSX.Element> {
   }
 
   const channelName = user.channel?.name ?? 'tu canal'
+  const channelSlug = user.channel?.slug ?? ''
 
-  return <DashboardHome channelName={channelName} />
+  return <DashboardHome channelName={channelName} channelSlug={channelSlug} />
 }
