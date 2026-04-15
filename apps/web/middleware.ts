@@ -6,6 +6,9 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 }
 
+// Subdomains that are fixed platform routes, not tenant slugs
+const RESERVED_SUBDOMAINS = new Set(['app', 'www', 'api', 'admin', 'mail', 'ftp']);
+
 function extractTenant(request: NextRequest): string | null {
   const host = request.headers.get('host') ?? '';
   const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
@@ -13,10 +16,14 @@ function extractTenant(request: NextRequest): string | null {
   if (!isLocalhost) {
     const parts = host.split('.');
     // e.g. demo.castify.tv → ["demo", "castify", "tv"]
-    if (parts.length >= 3) return parts[0] ?? null;
+    // Only treat subdomain as tenant if it's not a reserved platform subdomain
+    const subdomain = parts.length >= 3 ? parts[0] ?? null : null;
+    if (subdomain && !RESERVED_SUBDOMAINS.has(subdomain)) {
+      return subdomain;
+    }
   }
 
-  // Localhost: use ?tenant= query param first, then cookie
+  // Use ?tenant= query param first, then cookie
   const fromQuery = request.nextUrl.searchParams.get('tenant');
   if (fromQuery) return fromQuery;
 
