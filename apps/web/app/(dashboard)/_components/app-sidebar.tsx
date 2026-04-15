@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Home, Radio, Film, BarChart2, Settings, LogOut, Video, CalendarDays, Scissors } from 'lucide-react';
+import Cookies from 'js-cookie';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import type { UserWithChannel } from '@castify/types';
@@ -29,6 +30,15 @@ export function AppSidebar({ user }: AppSidebarProps): React.JSX.Element {
   const router   = useRouter();
   const channel  = user.channel;
   const [loggingOut, setLoggingOut] = useState(false);
+
+  // Initialize the API client tenant from the server-provided user data
+  // so all client-side API calls have X-Tenant-Slug available immediately
+  useEffect(() => {
+    if (channel?.slug) {
+      api.setTenant(channel.slug);
+      Cookies.set('castify_tenant', channel.slug, { expires: 30, sameSite: 'lax', path: '/' });
+    }
+  }, [channel?.slug]);
 
   async function handleLogout() {
     setLoggingOut(true);
